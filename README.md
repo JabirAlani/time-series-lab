@@ -2,7 +2,7 @@
 
 An interactive, in-browser companion to Session 5 of the L7 Time Series course: AR models and exponential smoothing.
 
-**Live app:** https://YOUR-USERNAME.github.io/time-series-lab/
+**Live app:** [https://YOUR-USERNAME.github.io/time-series-lab/](https://jabiralani.github.io/time-series-lab/)
 
 ## What's inside
 
