@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Time series lab: AR models and exponential smoothing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --paper:#F3F5F8; --surface:#FFFFFF; --ink:#14213D; --muted:#5A6477; --line:#D6DCE4; --soft:#E8ECF1; --dim:#B4BDCA;
+  --obs:#14213D; --fit:#0E8A8C; --fc:#C77F00; --band:rgba(199,127,0,.17); --test:#6E45C2; --bad:#C23B63; --good:#0E8A8C;
+  --teal-bg:#E1F2F1; --teal:#0E7375; --amber-bg:#FBF0D9; --amber:#9A6200; --rose-bg:#F9E5EB; --rose:#A8325A; --purple-bg:#EEE8F8; --purple:#5B3AA6;
+  --serif:"Source Serif 4", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E141E; --surface:#161F2D; --ink:#E6EBF2; --muted:#9AA6B8; --line:#2A3547; --soft:#1D2738; --dim:#465267;
+    --obs:#DCE3EC; --fit:#3CC3C4; --fc:#F2B233; --band:rgba(242,178,51,.18); --test:#A98BF0; --bad:#F07095; --good:#3CC3C4;
+    --teal-bg:#10302F; --teal:#6FD6D4; --amber-bg:#30260F; --amber:#F2C265; --rose-bg:#34182A; --rose:#F29AB6; --purple-bg:#231B39; --purple:#C2AEF5;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E141E; --surface:#161F2D; --ink:#E6EBF2; --muted:#9AA6B8; --line:#2A3547; --soft:#1D2738; --dim:#465267;
+  --obs:#DCE3EC; --fit:#3CC3C4; --fc:#F2B233; --band:rgba(242,178,51,.18); --test:#A98BF0; --bad:#F07095; --good:#3CC3C4;
+  --teal-bg:#10302F; --teal:#6FD6D4; --amber-bg:#30260F; --amber:#F2C265; --rose-bg:#34182A; --rose:#F29AB6; --purple-bg:#231B39; --purple:#C2AEF5;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:0 clamp(14px,3vw,32px)}
+header{padding:28px 0 8px}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(1.7rem,3.2vw,2.5rem);line-height:1.1;margin:0 0 6px;letter-spacing:-.01em}
+.lede{color:var(--muted);max-width:68ch;margin:0}
+h2{font-family:var(--serif);font-weight:600;font-size:1.3rem;margin:0 0 4px}
+h3{font-family:var(--serif);font-weight:600;font-size:1.06rem;margin:0}
+.cap{color:var(--muted);font-size:.86rem;margin:2px 0 8px;max-width:75ch}
+
+nav.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-top:18px;scrollbar-width:none}
+nav.tabs button{font:inherit;font-weight:600;background:none;border:0;color:var(--muted);padding:12px 14px 10px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button .n{font-family:var(--serif);font-weight:700;margin-right:6px;opacity:.7}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--fit)}
+nav.tabs button:hover{color:var(--ink)}
+
+.datastrip{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:18px 0 0}
+.datastrip .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px}
+.datastrip .head p{margin:0;color:var(--muted);font-size:.86rem}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px 18px;align-items:end}
+.datastrip textarea{width:100%;min-height:64px;font:inherit;font-size:.85rem;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--paper);color:var(--ink);margin-top:10px}
+
+.panel{display:none;grid-template-columns:300px minmax(0,1fr);gap:28px;padding:22px 0 40px}
+.panel.on{display:grid}
+aside.side{align-self:start;position:sticky;top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;max-height:calc(100vh - 24px);overflow:auto}
+aside.side h2{font-size:1.1rem}
+.group{padding:12px 0;border-top:1px solid var(--line)}
+.group:first-of-type{border-top:0;padding-top:4px}
+.ctl{display:block;margin:10px 0 0}
+.ctl>label,.ctl>.lab{display:flex;justify-content:space-between;gap:8px;font-size:.86rem;font-weight:600}
+.ctl output{font-variant-numeric:tabular-nums;font-weight:600;color:var(--fit)}
+input[type=range]{width:100%;accent-color:var(--fit);margin:6px 0 0}
+select,input[type=number]{font:inherit;font-size:.88rem;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);margin-top:4px}
+.chk{display:flex;align-items:center;gap:8px;font-size:.88rem;margin-top:10px;cursor:pointer}
+.chk input{accent-color:var(--fit);width:16px;height:16px}
+.hint{font-size:.8rem;color:var(--muted);margin:4px 0 0}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:6px;width:100%}
+.seg button{flex:1;font:inherit;font-size:.84rem;font-weight:600;background:var(--paper);color:var(--muted);border:0;border-left:1px solid var(--line);padding:7px 6px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.btn{font:inherit;font-weight:600;font-size:.88rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:8px;padding:8px 12px;cursor:pointer;margin-top:10px;width:100%}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn:hover{filter:brightness(1.1)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+:focus-visible{outline:2px solid var(--fit);outline-offset:2px}
+
+main.col{min-width:0}
+figure{margin:0 0 26px}
+.chart{position:relative;height:300px}
+.chart.sm{height:210px}
+.chart.xs{height:150px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px}
+.hero{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(230px,1fr);gap:24px;align-items:start}
+
+.score{display:flex;flex-wrap:wrap;gap:4px 28px;margin:0 0 20px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.score div{min-width:110px}
+.score dt{font-size:.78rem;color:var(--muted)}
+.score dd{margin:0;font-family:var(--serif);font-size:1.35rem;font-weight:600;font-variant-numeric:tabular-nums}
+.score dd.good{color:var(--good)} .score dd.bad{color:var(--bad)}
+
+.note{border-left:4px solid;border-radius:0 8px 8px 0;padding:10px 14px;margin:0 0 18px;font-size:.9rem;max-width:80ch}
+.note b.t{display:block;font-weight:700;margin-bottom:2px}
+.note p{margin:4px 0 0}
+.note.teal{background:var(--teal-bg);border-color:var(--teal)} .note.teal b.t{color:var(--teal)}
+.note.amber{background:var(--amber-bg);border-color:var(--amber)} .note.amber b.t{color:var(--amber)}
+.note.rose{background:var(--rose-bg);border-color:var(--rose)} .note.rose b.t{color:var(--rose)}
+.note.purple{background:var(--purple-bg);border-color:var(--purple)} .note.purple b.t{color:var(--purple)}
+
+.circle svg{width:100%;max-width:280px;display:block;margin:6px auto 0}
+.verdict{font-family:var(--serif);font-size:1.15rem;font-weight:600;margin:8px 0 2px;text-align:center}
+.verdict.ok{color:var(--good)} .verdict.no{color:var(--bad)}
+.circle .cap{text-align:center;margin:0 auto}
+.readout{font-size:.9rem;margin:10px 0 0}
+.readout p{margin:0 0 6px}
+
+table.t{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+table.t th,table.t td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+table.t th{color:var(--muted);font-weight:600;font-size:.8rem}
+table.t td.num{text-align:right}
+table.t tr.best td{font-weight:700;color:var(--good)}
+.tablewrap{overflow-x:auto}
+.err{color:var(--bad);font-weight:600;font-size:.9rem;margin:6px 0}
+.eq{font-family:var(--serif);font-size:1.05rem;margin:4px 0 10px;overflow-x:auto;white-space:nowrap}
+footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);padding:16px 0 30px}
+
+@media (max-width:900px){
+  .panel.on{grid-template-columns:1fr}
+  aside.side{position:static;max-height:none}
+  .hero{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;background:var(--soft);border-radius:8px;padding:10px 12px;overflow-x:auto;white-space:pre;margin:6px 0 0;color:var(--ink)}
+.fam{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px}
+.fam button{font:inherit;font-size:.8rem;font-weight:600;background:var(--paper);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:6px 2px;cursor:pointer}
+.fam button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.modelname{font-family:var(--serif);font-weight:600;font-size:1.25rem;margin:2px 0 0}
+.modelsub{color:var(--muted);font-size:.85rem;margin:0 0 4px}
+.etsgrid{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:6px;align-items:stretch;font-size:.84rem;margin:6px 0 24px}
+.etsgrid .h{font-weight:600;color:var(--muted);font-size:.78rem;align-self:end;padding:0 2px}
+.etsgrid .r{font-weight:600;align-self:center;padding-right:6px;white-space:nowrap}
+.etsgrid button{font:inherit;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--ink);min-height:62px}
+.etsgrid button .nm{display:block;font-size:.78rem;line-height:1.25}
+.etsgrid button .tg{display:block;font-family:var(--serif);font-weight:600;font-size:.95rem}
+.etsgrid button .aic{display:block;font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px}
+.etsgrid button[aria-pressed="true"]{border:2px solid var(--fit);background:var(--teal-bg)}
+.etsgrid button.best .aic{color:var(--good);font-weight:700}
+.etsgrid button:disabled{opacity:.4;cursor:not-allowed}
+.busy{color:var(--muted);font-size:.88rem;margin:4px 0}
+.etsgrid .short{display:none}
+@media (max-width:600px){.etsgrid{gap:4px;font-size:.76rem}.etsgrid button{padding:6px 4px;min-height:52px;text-align:center}.etsgrid button .nm{display:none}.etsgrid button .tg{font-size:.8rem;word-break:break-all}.etsgrid button .aic{font-size:.68rem}.etsgrid .long{display:none}.etsgrid .short{display:inline}.etsgrid .r{padding-right:2px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Time series lab</h1>
+  <p class="lede">A hands-on companion to Session 5. Simulate the whole ARIMA family, fit anything from AR(1) to SARIMAX, explore every exponential smoothing type, then see which model beats the naive baseline. Every chart redraws as you change a setting.</p>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="proc" aria-selected="true"><span class="n">1</span>Process simulator</button>
+  <button role="tab" data-tab="ar" aria-selected="false"><span class="n">2</span>AR to SARIMAX</button>
+  <button role="tab" data-tab="es" aria-selected="false"><span class="n">3</span>Exponential smoothing</button>
+  <button role="tab" data-tab="cmp" aria-selected="false"><span class="n">4</span>Compare models</button>
+</nav>
+
+<section class="datastrip" id="datastrip" hidden>
+  <div class="head"><h2>Data</h2><p id="dataSummary"></p></div>
+  <div class="dgrid">
+    <div class="ctl"><span class="lab">Series</span>
+      <select data-bind="data.preset">
+        <option value="revenue">Monthly revenue (like the notes)</option>
+        <option value="stock">Stock-like daily prices</option>
+        <option value="flat">No trend, no season</option>
+        <option value="custom">Your own numbers</option>
+      </select></div>
+    <div class="ctl gen"><label>Length <output data-for="data.n"></output></label><input type="range" data-bind="data.n" min="36" max="400" step="1"></div>
+    <div class="ctl gen"><label>Starting level <output data-for="data.level" data-dp="0"></output></label><input type="range" data-bind="data.level" min="0" max="200" step="1"></div>
+    <div class="ctl gen"><label>Trend per step <output data-for="data.slope" data-dp="2"></output></label><input type="range" data-bind="data.slope" min="-1" max="2" step="0.01"></div>
+    <div class="ctl gen"><label>Season size <output data-for="data.amp" data-dp="1"></output></label><input type="range" data-bind="data.amp" min="0" max="20" step="0.5"></div>
+    <div class="ctl"><label>Season length m <output data-for="data.period"></output></label><input type="range" data-bind="data.period" min="2" max="52" step="1"></div>
+    <div class="ctl gen"><label>Noise size <output data-for="data.noise" data-dp="1"></output></label><input type="range" data-bind="data.noise" min="0" max="10" step="0.1"></div>
+    <div class="ctl gen"><span class="lab">Noise type</span>
+      <select data-bind="data.ntype">
+        <option value="white">Independent shocks</option>
+        <option value="ar">Persistent shocks (AR(1), φ = 0.7)</option>
+        <option value="rw">Random walk</option>
+      </select></div>
+    <div class="ctl gen"><span class="lab">External driver x</span>
+      <select data-bind="data.driver">
+        <option value="promo">Promotion months (0 or 1)</option>
+        <option value="spend">Marketing spend (vs normal)</option>
+      </select></div>
+    <div class="ctl gen"><label>Driver effect on y <output data-for="data.effect" data-dp="1"></output></label><input type="range" data-bind="data.effect" min="-10" max="10" step="0.5"></div>
+    <div class="ctl gen"><span class="lab">Random seed</span><input type="number" data-bind="data.seed" min="1" max="99999" step="1"></div>
+    <div class="ctl"><label>Hold-out (test) <output data-for="data.H"></output></label><input type="range" data-bind="data.H" min="3" max="60" step="1"></div>
+    <div class="ctl"><label>Forecast past the data <output data-for="data.F"></output></label><input type="range" data-bind="data.F" min="0" max="36" step="1"></div>
+    <label class="chk gen"><input type="checkbox" data-bind="data.grow">Noise grows over time</label>
+  </div>
+  <div id="customBox" hidden>
+    <textarea id="customText" placeholder="Paste at least 24 numbers for y, separated by commas, spaces or new lines (oldest first)."></textarea>
+    <textarea id="customX" placeholder="Optional: the driver x, same order. It needs at least as many values as y; extra values are used as known future inputs."></textarea>
+    <button class="btn ghost" id="customApply" style="width:auto">Use these numbers</button>
+    <p class="err" id="customErr"></p>
+  </div>
+</section>
+
+<!-- TAB 1 -->
+<section class="panel on" id="tab-proc" role="tabpanel">
+  <aside class="side">
+    <h2>Simulate a process</h2>
+    <p class="eq">φ(L)Φ(L<sup>m</sup>)(1−L)<sup>d</sup>y<sub>t</sub> = c + θ(L)Θ(L<sup>m</sup>)e<sub>t</sub></p>
+    <div class="group">
+      <div class="ctl"><span class="lab">Try a model</span>
+        <select id="procPreset">
+          <option value="">Choose…</option>
+          <option value="ar1">AR(1), strong persistence</option>
+          <option value="flip">AR(1), flips each step</option>
+          <option value="cycle">AR(2), pseudo-cycles</option>
+          <option value="ma1">MA(1)</option>
+          <option value="ma2">MA(2)</option>
+          <option value="arma">ARMA(1, 1)</option>
+          <option value="rw">Random walk, ARIMA(0, 1, 0)</option>
+          <option value="arima">ARIMA(1, 1, 0)</option>
+          <option value="sar">Seasonal AR, SARIMA(0,0,0)(1,0,0)12</option>
+          <option value="sma">Seasonal MA, SARIMA(0,0,1)(0,0,1)12</option>
+          <option value="explode">Explosive AR(1)</option>
+          <option value="noninv">Non-invertible MA(1)</option>
+          <option value="noise">White noise</option>
+        </select></div>
+      <p class="modelname" id="procName"></p>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">AR order p</span>
+        <div class="seg" data-bind="proc.p"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
+      <div class="ctl" data-when="S.proc.p>=1"><label>φ₁ <output data-for="proc.phi1" data-dp="2"></output></label><input type="range" data-bind="proc.phi1" min="-1.5" max="1.5" step="0.01"></div>
+      <div class="ctl" data-when="S.proc.p>=2"><label>φ₂ <output data-for="proc.phi2" data-dp="2"></output></label><input type="range" data-bind="proc.phi2" min="-1" max="1" step="0.01"></div>
+      <div class="ctl" data-when="S.proc.p>=3"><label>φ₃ <output data-for="proc.phi3" data-dp="2"></output></label><input type="range" data-bind="proc.phi3" min="-1" max="1" step="0.01"></div>
+      <p class="hint">φ: weight on past values. Near +1, values stay high or low for a long time; negative, the series flips direction.</p>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">MA order q</span>
+        <div class="seg" data-bind="proc.q"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div></div>
+      <div class="ctl" data-when="S.proc.q>=1"><label>θ₁ <output data-for="proc.th1" data-dp="2"></output></label><input type="range" data-bind="proc.th1" min="-1.5" max="1.5" step="0.01"></div>
+      <div class="ctl" data-when="S.proc.q>=2"><label>θ₂ <output data-for="proc.th2" data-dp="2"></output></label><input type="range" data-bind="proc.th2" min="-1" max="1" step="0.01"></div>
+      <div class="ctl" data-when="S.proc.q>=3"><label>θ₃ <output data-for="proc.th3" data-dp="2"></output></label><input type="range" data-bind="proc.th3" min="-1" max="1" step="0.01"></div>
+      <p class="hint">θ: how much of a past shock carries into today. Near 0, surprises die out quickly.</p>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">Season length m</span>
+        <div class="seg" data-bind="proc.m"><button data-v="4">4</button><button data-v="7">7</button><button data-v="12">12</button></div></div>
+      <div class="ctl"><label>Seasonal AR Φ₁ <output data-for="proc.sar" data-dp="2"></output></label><input type="range" data-bind="proc.sar" min="-0.99" max="0.99" step="0.01"></div>
+      <div class="ctl"><label>Seasonal MA Θ₁ <output data-for="proc.sma" data-dp="2"></output></label><input type="range" data-bind="proc.sma" min="-0.99" max="0.99" step="0.01"></div>
+      <p class="hint">The same ideas at lag m, the S in SARIMA. 0 switches the term off.</p>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">Integration d</span>
+        <div class="seg" data-bind="proc.d"><button data-v="0">d = 0</button><button data-v="1">d = 1</button><button data-v="2">d = 2</button></div></div>
+      <p class="hint">d = 1 adds up the ARMA series once (the I in ARIMA), so differencing once gets it back.</p>
+      <div class="ctl"><label>Constant c <output data-for="proc.c" data-dp="2"></output></label><input type="range" data-bind="proc.c" min="-2" max="2" step="0.05"></div>
+      <div class="ctl"><label>Noise σ <output data-for="proc.sigma" data-dp="2"></output></label><input type="range" data-bind="proc.sigma" min="0.1" max="3" step="0.05"></div>
+      <div class="ctl"><label>Length <output data-for="proc.n"></output></label><input type="range" data-bind="proc.n" min="50" max="600" step="10"></div>
+      <button class="btn ghost" id="procReseed">Draw new noise</button>
+    </div>
+  </aside>
+  <main class="col">
+    <div class="hero">
+      <figure>
+        <h3>Simulated series</h3>
+        <p class="cap" id="procCap"></p>
+        <div class="chart"><canvas id="cProc"></canvas></div>
+      </figure>
+      <figure class="circle">
+        <h3>Stationarity and invertibility</h3>
+        <p class="cap">Dots: AR roots. Squares: MA roots. Inside the circle is the well-behaved zone.</p>
+        <div id="unitCircle"></div>
+        <p class="verdict" id="verdict"></p>
+        <p class="verdict" id="verdict2" style="font-size:1rem;margin-top:0"></p>
+      </figure>
+    </div>
+    <div class="readout" id="procRead"></div>
+    <div class="grid2" style="margin-top:18px">
+      <figure>
+        <h3>Autocorrelation (ACF)</h3>
+        <p class="cap">Bars: from the simulated data. Line: what the model implies. Dashed: ±1.96/√n.</p>
+        <div class="chart sm"><canvas id="cAcf"></canvas></div>
+      </figure>
+      <figure>
+        <h3>Partial autocorrelation (PACF)</h3>
+        <p class="cap">AR(p): PACF cuts off after lag p. MA(q): ACF cuts off after lag q. ARMA: both tail off.</p>
+        <div class="chart sm"><canvas id="cPacf"></canvas></div>
+      </figure>
+    </div>
+    <div class="note rose"><b class="t">Symbols</b>
+      <p><b>φ(L), θ(L):</b> the AR and MA polynomials in the lag operator L (L·y<sub>t</sub> = y<sub>t−1</sub>). <b>Φ(L<sup>m</sup>), Θ(L<sup>m</sup>):</b> their seasonal versions at lag m. <b>(1 − L)<sup>d</sup>:</b> differencing d times.</p>
+      <p><b>c</b> is a constant, not quite the mean: the long-run mean of a stationary process is c / (1 − φ₁ − … − φₚ)(1 − Φ₁).</p>
+    </div>
+  </main>
+</section>
+
+<!-- TAB 2 -->
+<section class="panel" id="tab-ar" role="tabpanel">
+  <aside class="side">
+    <h2>AR to SARIMAX</h2>
+    <div class="group">
+      <span class="lab" style="font-size:.86rem;font-weight:600">Model family</span>
+      <div class="fam" id="famBtns">
+        <button data-f="AR">AR</button><button data-f="MA">MA</button><button data-f="ARMA">ARMA</button><button data-f="ARMAX">ARMAX</button>
+        <button data-f="ARIMA">ARIMA</button><button data-f="ARIMAX">ARIMAX</button><button data-f="SARIMA">SARIMA</button><button data-f="SARIMAX">SARIMAX</button>
+      </div>
+      <p class="hint">Each button sets the orders for that family. Adjust any order below and the name updates.</p>
+    </div>
+    <div class="group">
+      <div class="ctl"><label>AR order p <output data-for="ar.p"></output></label><input type="range" data-bind="ar.p" min="0" max="5" step="1"></div>
+      <div class="ctl"><span class="lab">Differencing d</span>
+        <div class="seg" data-bind="ar.d"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button></div></div>
+      <div class="ctl"><label>MA order q <output data-for="ar.q"></output></label><input type="range" data-bind="ar.q" min="0" max="5" step="1"></div>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">Seasonal AR P</span>
+        <div class="seg" data-bind="ar.P"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button></div></div>
+      <div class="ctl"><span class="lab">Seasonal differencing D</span>
+        <div class="seg" data-bind="ar.D"><button data-v="0">0</button><button data-v="1">1</button></div></div>
+      <div class="ctl"><span class="lab">Seasonal MA Q</span>
+        <div class="seg" data-bind="ar.Q"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button></div></div>
+      <p class="hint" id="arMhint"></p>
+    </div>
+    <div class="group">
+      <label class="chk"><input type="checkbox" data-bind="ar.exog" id="exogChk">Use the driver x (the X)</label>
+      <p class="hint" id="exogHint"></p>
+      <label class="chk"><input type="checkbox" data-bind="ar.trend">Include constant c (drift when d or D ≥ 1)</label>
+      <label class="chk"><input type="checkbox" data-bind="ar.band">Show 95% forecast band</label>
+      <button class="btn" id="arSearch">Search orders by AIC</button>
+      <p class="hint">Tries p, q from 0 to 2 and P, Q from 0 to 1 at your d and D, like arma_order_select_ic, then picks the lowest AIC.</p>
+    </div>
+  </aside>
+  <main class="col">
+    <p class="modelname" id="arName"></p>
+    <p class="modelsub" id="arSub"></p>
+    <figure>
+      <p class="cap">Dark line: training data. Purple: the hold-out the model never sees. Teal dashed: in-sample one-step fit. Amber: the forecast.</p>
+      <div class="chart"><canvas id="cArFc"></canvas></div>
+    </figure>
+    <p class="err" id="arErr"></p>
+    <dl class="score" id="arScore"></dl>
+    <div id="arNotes"></div>
+    <div id="arSearchOut"></div>
+    <div class="grid2">
+      <figure>
+        <h3>What the model actually sees</h3>
+        <p class="cap" id="arZcap"></p>
+        <div class="chart sm"><canvas id="cArZ"></canvas></div>
+      </figure>
+      <figure>
+        <h3>Residual ACF</h3>
+        <p class="cap">Bars outside the dashed lines mean structure is left for the model to capture, for example at the seasonal lag.</p>
+        <div class="chart sm"><canvas id="cArRes"></canvas></div>
+      </figure>
+      <figure>
+        <h3>Fitted coefficients</h3>
+        <p class="cap">Estimated by conditional least squares on the training data.</p>
+        <div class="tablewrap" id="arCoef"></div>
+      </figure>
+      <figure data-when="S.ar.exog">
+        <h3>The driver x</h3>
+        <p class="cap" id="arXcap"></p>
+        <div class="chart sm"><canvas id="cArX"></canvas></div>
+      </figure>
+    </div>
+    <figure>
+      <h3>The same model in statsmodels</h3>
+      <pre class="code" id="arCode"></pre>
+    </figure>
+  </main>
+</section>
+
+<!-- TAB 3 -->
+<section class="panel" id="tab-es" role="tabpanel">
+  <aside class="side">
+    <h2>Exponential smoothing</h2>
+    <div class="group">
+      <span class="lab" style="font-size:.86rem;font-weight:600">Classic methods</span>
+      <div class="fam" id="esQuick" style="grid-template-columns:repeat(2,1fr)">
+        <button data-t="N" data-s="N">SES</button><button data-t="A" data-s="N">Holt</button>
+        <button data-t="Ad" data-s="N">Damped Holt</button><button data-t="A" data-s="A">HW additive</button>
+        <button data-t="A" data-s="M">HW multiplicative</button><button data-t="Ad" data-s="M">Damped HW</button>
+      </div>
+    </div>
+    <div class="group">
+      <div class="ctl"><span class="lab">Error</span>
+        <div class="seg" data-bind="es.error"><button data-v="A">Additive</button><button data-v="M">Multiplicative</button></div></div>
+      <div class="ctl"><span class="lab">Trend</span>
+        <select data-bind="es.trend">
+          <option value="N">None</option><option value="A">Additive</option><option value="Ad">Additive, damped</option>
+          <option value="M">Multiplicative</option><option value="Md">Multiplicative, damped</option>
+        </select></div>
+      <div class="ctl"><span class="lab">Season</span>
+        <div class="seg" data-bind="es.season"><button data-v="N">None</button><button data-v="A">Additive</button><button data-v="M">Multiplicative</button></div></div>
+      <label class="chk"><input type="checkbox" data-bind="es.log">Log-transform first (Box-Cox, λ = 0)</label>
+    </div>
+    <div class="group">
+      <div class="ctl"><label>α, level <output data-for="es.alpha" data-dp="2"></output></label><input type="range" data-bind="es.alpha" min="0.01" max="1" step="0.01"></div>
+      <p class="hint">Near 1: follows the latest value (α = 1 is the naive forecast). Near 0: smooth but slow to react.</p>
+      <div data-when="S.es.trend!=='N'">
+        <div class="ctl"><label>β*, trend <output data-for="es.beta" data-dp="2"></output></label><input type="range" data-bind="es.beta" min="0" max="1" step="0.01"></div>
+        <p class="hint">How quickly the slope reacts to recent changes.</p>
+      </div>
+      <div data-when="S.es.season!=='N'">
+        <div class="ctl"><label>γ, season <output data-for="es.gamma" data-dp="2"></output></label><input type="range" data-bind="es.gamma" min="0" max="1" step="0.01"></div>
+        <p class="hint">How quickly the seasonal pattern updates. 0 keeps it fixed.</p>
+      </div>
+      <div data-when="S.es.trend.endsWith('d')">
+        <div class="ctl"><label>φ, damping <output data-for="es.phi" data-dp="2"></output></label><input type="range" data-bind="es.phi" min="0.8" max="1" step="0.01"></div>
+        <p class="hint">Below 1 the trend fades with the horizon.</p>
+      </div>
+      <button class="btn" id="esFit">Fit parameters</button>
+      <button class="btn ghost" id="esBest">Find the best ETS model by AIC</button>
+      <p class="hint">Fitting uses the training data only: minimum SSE for additive errors, maximum likelihood for multiplicative errors.</p>
+      <p class="busy" id="esBusy"></p>
+    </div>
+    <div class="group">
+      <label class="chk"><input type="checkbox" data-bind="es.band">Show 95% forecast band</label>
+    </div>
+  </aside>
+  <main class="col">
+    <p class="modelname" id="esName"></p>
+    <p class="modelsub" id="esSub"></p>
+    <figure>
+      <p class="cap">Dark line: training data. Purple: the hold-out. Teal dashed: one-step-ahead fit. Amber: the forecast.</p>
+      <div class="chart"><canvas id="cEsFc"></canvas></div>
+    </figure>
+    <p class="err" id="esErr"></p>
+    <dl class="score" id="esScore"></dl>
+    <h3>All 15 trend and season combinations</h3>
+    <p class="cap" id="gridCap">Pick a cell to switch model. The error type above applies to every cell, giving 30 ETS models in total. “Find the best” fills in each AIC.</p>
+    <div class="etsgrid" id="etsGrid"></div>
+    <div id="esNotes"></div>
+    <div class="grid2">
+      <figure>
+        <h3>How α spreads the weight</h3>
+        <p class="cap">Weight on the value k steps back is α(1 − α)<sup>k</sup>.</p>
+        <div class="chart sm"><canvas id="cEsW"></canvas></div>
+      </figure>
+      <figure>
+        <h3>Level l<sub>t</sub></h3>
+        <p class="cap">The smoothed estimate of where the series sits.</p>
+        <div class="chart sm"><canvas id="cEsL"></canvas></div>
+      </figure>
+      <figure data-when="S.es.trend!=='N'">
+        <h3>Trend b<sub>t</sub></h3>
+        <p class="cap" id="esBcap"></p>
+        <div class="chart sm"><canvas id="cEsB"></canvas></div>
+      </figure>
+      <figure data-when="S.es.season!=='N'">
+        <h3>Season s<sub>t</sub></h3>
+        <p class="cap" id="esScap"></p>
+        <div class="chart sm"><canvas id="cEsS"></canvas></div>
+      </figure>
+    </div>
+    <figure>
+      <h3>The same model in statsmodels</h3>
+      <pre class="code" id="esCode"></pre>
+    </figure>
+  </main>
+</section>
+
+<!-- TAB 4 -->
+<section class="panel" id="tab-cmp" role="tabpanel">
+  <aside class="side">
+    <h2>Compare models</h2>
+    <div class="group">
+      <div class="ctl"><span class="lab">How to score</span>
+        <div class="seg" data-bind="cmp.mode"><button data-v="holdout">One hold-out</button><button data-v="rolling">Rolling origin</button></div></div>
+      <p class="hint" id="cmpModeHint"></p>
+      <div data-when="S.cmp.mode==='rolling'">
+        <div class="ctl"><label>Folds <output data-for="cmp.folds"></output></label><input type="range" data-bind="cmp.folds" min="2" max="10" step="1"></div>
+        <div class="ctl"><label>Test size per fold <output data-for="cmp.fsize"></output></label><input type="range" data-bind="cmp.fsize" min="1" max="24" step="1"></div>
+      </div>
+    </div>
+    <div class="group">
+      <p class="hint" id="cmpHint"></p>
+    </div>
+  </aside>
+  <main class="col">
+    <figure>
+      <h3 id="cmpTitle">Test MAE by model</h3>
+      <p class="cap">Mean absolute error in the data’s own units. Shorter bars are better. Grey: naive baselines. Teal: the ARIMA family. Amber: exponential smoothing.</p>
+      <p class="busy" id="cmpBusy"></p>
+      <div class="chart" style="height:460px"><canvas id="cCmp"></canvas></div>
+    </figure>
+    <div class="tablewrap" id="cmpTable" style="margin-bottom:24px"></div>
+    <figure data-when="S.cmp.mode==='holdout'">
+      <h3>Forecasts on the hold-out</h3>
+      <p class="cap">Click a name in the legend to hide or show that model. Several start hidden to keep the chart readable.</p>
+      <div class="chart"><canvas id="cCmpFc"></canvas></div>
+    </figure>
+    <div class="note teal"><b class="t">Choosing a forecasting approach</b>
+      <p><b>Naive baselines</b> (last value, mean, same period last season): always compute them; they are the benchmark to beat.</p>
+      <p><b>Exponential smoothing:</b> fast, robust and readable when trend and season are clear. No stationarity step, but no external drivers either.</p>
+      <p><b>ARIMA family:</b> when the autocorrelation structure matters or you have external drivers (the X). Needs stationarity, handled with d and D.</p>
+    </div>
+    <div class="note amber"><b class="t">Look closer</b>
+      <p>One train/test split gives one noisy score. Switch to rolling origin and check whether the ranking survives.</p>
+    </div>
+  </main>
+</section>
+
+<footer>All series are simulated in your browser, or pasted by you under “Your own numbers”. ARIMA-family models are fitted by conditional least squares with stationarity and invertibility enforced; exponential smoothing follows the ETS framework (Hyndman and Athanasopoulos, Forecasting: Principles and Practice). Numbers will be close to, but not identical to, statsmodels.</footer>
+</div>
+<script>
+/* ================= state ================= */
+const S={
+  tab:'proc',
+  data:{preset:'revenue',n:64,level:16,slope:0.6,amp:6,period:12,noise:3,ntype:'white',grow:true,seed:7,H:12,F:0,driver:'promo',effect:5},
+  proc:{p:1,phi1:0.7,phi2:0,phi3:0,q:1,th1:0.4,th2:0,th3:0,m:12,sar:0,sma:0,d:0,c:0.5,sigma:1,n:240,seed:3},
+  ar:{p:2,d:1,q:1,P:0,D:0,Q:0,exog:false,trend:true,band:true},
+  es:{error:'A',trend:'A',season:'A',log:false,alpha:0.3,beta:0.1,gamma:0.2,phi:0.95,band:true,init:null,grid:null},
+  cmp:{mode:'holdout',folds:5,fsize:3}
+};
+const PRESETS={
+  revenue:{n:64,level:16,slope:0.6,amp:6,period:12,noise:3,ntype:'white',grow:true,H:12,driver:'promo',effect:5},
+  stock:{n:300,level:150,slope:0.08,amp:0,period:5,noise:2,ntype:'rw',grow:false,H:50,driver:'spend',effect:0},
+  flat:{n:120,level:50,slope:0,amp:0,period:12,noise:3,ntype:'ar',grow:false,H:12,driver:'spend',effect:3}
+};
+const P0={p:0,phi1:0,phi2:0,phi3:0,q:0,th1:0,th2:0,th3:0,sar:0,sma:0,d:0};
+const PROC_PRESETS={
+  ar1:{p:1,phi1:0.9,c:0.5},flip:{p:1,phi1:-0.8,c:0.5},cycle:{p:2,phi1:1.2,phi2:-0.6,c:0.5},
+  ma1:{q:1,th1:0.8,c:0},ma2:{q:2,th1:0.6,th2:0.5,c:0},arma:{p:1,phi1:0.7,q:1,th1:0.4,c:0.5},
+  rw:{d:1,c:0},arima:{p:1,phi1:0.5,d:1,c:0.05},sar:{sar:0.8,m:12,c:0},sma:{q:1,th1:0.5,sma:0.7,m:12,c:0},
+  explode:{p:1,phi1:1.03,c:0},noninv:{q:1,th1:1.4,c:0},noise:{c:0}
+};
+let DATA=null,CUSTOM=null,CUSTOMX=null;
+
+/* ================= maths helpers ================= */
+function rng(seed){let a=(seed>>>0)||1;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){let u=0;while(u===0)u=r();const v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+const sd=a=>{const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)*(v-m),0)/Math.max(1,a.length-1));};
+function mae(a,b){let s=0,n=0;for(let i=0;i<a.length;i++){if(a[i]!=null&&b&&b[i]!=null&&isFinite(b[i])){s+=Math.abs(a[i]-b[i]);n++;}}return n?s/n:NaN;}
+function fmt(v,d=2){if(v==null||!isFinite(v))return '–';return Number(v).toLocaleString('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function pct(sorted,q){const i=(sorted.length-1)*q,lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo);}
+function solve(A,b){const n=b.length;const M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];
+    const d=M[c][c]||1e-12;for(let r=0;r<n;r++){if(r===c)continue;const f=M[r][c]/d;if(!f)continue;for(let k=c;k<=n;k++)M[r][k]-=f*M[c][k];}}
+  return M.map((r,i)=>r[n]/(r[i]||1e-12));}
+function polyMul(a,b){const r=new Array(a.length+b.length-1).fill(0);for(let i=0;i<a.length;i++){if(!a[i])continue;for(let j=0;j<b.length;j++)r[i+j]+=a[i]*b[j];}return r;}
+/* roots of z^n + a1 z^(n-1) + ... + an, given a=[1,a1,...,an] */
+function polyRoots(a){a=a.slice();while(a.length>1&&Math.abs(a[a.length-1])<1e-14)a.pop();
+  const n=a.length-1;if(n<1)return[];
+  let R=[];const base=[0.4,0.9];let cur=[1,0];for(let i=0;i<n;i++){cur=[cur[0]*base[0]-cur[1]*base[1],cur[0]*base[1]+cur[1]*base[0]];R.push(cur.slice());}
+  const ev=z=>{let re=1,im=0;for(let k=1;k<=n;k++){const r2=re*z[0]-im*z[1]+a[k];const i2=re*z[1]+im*z[0];re=r2;im=i2;}return[re,im];};
+  for(let it=0;it<1000;it++){let delta=0;for(let i=0;i<n;i++){const num=ev(R[i]);let den=[1,0];
+      for(let j=0;j<n;j++){if(j===i)continue;const d=[R[i][0]-R[j][0],R[i][1]-R[j][1]];den=[den[0]*d[0]-den[1]*d[1],den[0]*d[1]+den[1]*d[0]];}
+      const dd=den[0]*den[0]+den[1]*den[1]||1e-30;const q=[(num[0]*den[0]+num[1]*den[1])/dd,(num[1]*den[0]-num[0]*den[1])/dd];
+      R[i]=[R[i][0]-q[0],R[i][1]-q[1]];delta=Math.max(delta,Math.hypot(q[0],q[1]));}
+    if(delta<1e-13)break;}
+  return R.map(z=>[z[0],Math.abs(z[1])<1e-8?0:z[1]]);}
+const maxMod=a=>{const r=polyRoots(a);return r.length?Math.max(...r.map(z=>Math.hypot(z[0],z[1]))):0;};
+function acf(x,K){const m=mean(x);const d=x.map(v=>v-m);const c0=d.reduce((s,v)=>s+v*v,0);const r=[];
+  for(let k=1;k<=K;k++){let s=0;for(let t=0;t+k<x.length;t++)s+=d[t]*d[t+k];r.push(c0?s/c0:0);}return r;}
+function pacf(r){const out=[];let phi=[];
+  for(let k=1;k<=r.length;k++){let num=r[k-1],den=1;for(let j=1;j<k;j++){num-=phi[j-1]*r[k-1-j];den-=phi[j-1]*r[j-1];}
+    const pkk=Math.abs(den)<1e-12?0:num/den;const nphi=[];for(let j=1;j<k;j++)nphi.push(phi[j-1]-pkk*phi[k-1-j]);nphi.push(pkk);phi=nphi;out.push(pkk);}
+  return out;}
+/* theoretical ACF of ARMA given expanded polys A (1 - ...) and B (1 + ...) */
+function theoACF(A,B,K){const J=1500;const psi=[1];for(let j=1;j<J;j++){let s=j<B.length?B[j]:0;for(let k=1;k<A.length&&k<=j;k++)s-=A[k]*psi[j-k];psi.push(s);}
+  const g=k=>{let s=0;for(let j=0;j+k<J;j++)s+=psi[j]*psi[j+k];return s;};const g0=g(0);const out=[];for(let k=1;k<=K;k++)out.push(g(k)/g0);return out;}
+function nelderMead(f,x0,step,iters=600){const n=x0.length;if(n===0)return{x:[],f:f([])};let P=[x0.slice()];for(let i=0;i<n;i++){const x=x0.slice();x[i]+=step[i];P.push(x);}let F=P.map(f);
+  for(let it=0;it<iters;it++){const idx=[...P.keys()].sort((a,b)=>F[a]-F[b]);P=idx.map(i=>P[i]);F=idx.map(i=>F[i]);
+    if(Math.abs(F[n]-F[0])<=1e-10*(Math.abs(F[0])+1e-10))break;
+    const c=new Array(n).fill(0);for(let i=0;i<n;i++)for(let j=0;j<n;j++)c[j]+=P[i][j]/n;
+    const xr=c.map((v,j)=>v+(v-P[n][j]));const fr=f(xr);
+    if(fr<F[0]){const xe=c.map((v,j)=>v+2*(v-P[n][j]));const fe=f(xe);if(fe<fr){P[n]=xe;F[n]=fe;}else{P[n]=xr;F[n]=fr;}}
+    else if(fr<F[n-1]){P[n]=xr;F[n]=fr;}
+    else{const xc=fr<F[n]?c.map((v,j)=>v+0.5*(xr[j]-v)):c.map((v,j)=>v+0.5*(P[n][j]-v));const fc=f(xc);
+      if(fc<Math.min(fr,F[n])){P[n]=xc;F[n]=fc;}else{for(let i=1;i<=n;i++){P[i]=P[i].map((v,j)=>P[0][j]+0.5*(v-P[0][j]));F[i]=f(P[i]);}}}}
+  let bi=0;for(let i=1;i<=n;i++)if(F[i]<F[bi])bi=i;return{x:P[bi],f:F[bi]};}
+const sig=x=>1/(1+Math.exp(-x)),logit=p=>Math.log(p/(1-p));
+
+/* ================= data ================= */
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function genData(){const D=S.data;let y,x;
+  if(D.preset==='custom'&&CUSTOM){y=CUSTOM.slice();x=CUSTOMX?CUSTOMX.slice():null;}
+  else{const r=rng(D.seed),rx=rng(D.seed*7+11);y=[];x=[];let ar=0,rw=0,xs=0;
+    for(let t=0;t<D.n+40;t++){if(D.driver==='promo')x.push(rx()<0.2?1:0);else{xs=0.75*xs+gauss(rx);x.push(+xs.toFixed(3));}}
+    for(let t=0;t<D.n;t++){const e=gauss(r)*D.noise*(D.grow?(0.6+0.8*t/D.n):1);let nz;
+      if(D.ntype==='white')nz=e;else if(D.ntype==='ar'){ar=0.7*ar+e;nz=ar;}else{rw+=e;nz=rw;}
+      y.push(D.level+D.slope*t+D.amp*Math.cos(2*Math.PI*t/D.period)+D.effect*x[t]+nz);}}
+  const monthly=D.preset==='revenue'&&D.period===12;
+  const unit=D.preset==='revenue'?'£ millions':D.preset==='stock'?'Price ($)':'Value';
+  const xname=D.preset==='custom'?'your driver':D.driver==='promo'?'promotion months':'marketing spend';
+  DATA={y,x,xname,period:D.period,unit,version:(DATA?DATA.version+1:1),
+    label:i=>monthly?MONTHS[i%12]+' '+String(2015+Math.floor(i/12)).slice(2):String(i+1)};
+  const Hmax=Math.max(3,Math.min(60,Math.floor(y.length/3)));if(S.data.H>Hmax)S.data.H=Hmax;
+  const h=document.querySelector('[data-bind="data.H"]');if(h)h.max=Hmax;
+  if(!x&&S.ar.exog)S.ar.exog=false;
+  S.es.init=null;S.es.grid=null;S._search=null;CMP_CACHE={};}
+function getX(len){if(!DATA.x)return null;const x=DATA.x.slice(0,len);while(x.length<len)x.push(x[x.length-1]);return x;}
+function split(){const y=DATA.y,H=S.data.H;return{train:y.slice(0,y.length-H),test:y.slice(y.length-H),H,F:S.data.F};}
+function baselines(train,test,H){const m=DATA.period;const naive=mae(test,Array(H).fill(train[train.length-1]));
+  const sn=train.length>=m?mae(test,Array.from({length:H},(_,k)=>train[train.length-m+(k%m)])):NaN;return{naive,sn,best:Math.min(naive,isFinite(sn)?sn:Infinity)};}
+
+/* ================= ARIMA family ================= */
+function makeDiff(y,d,D,s){const lv=[{a:y.slice(),lag:0}];let cur=y.slice();
+  if(D){const c=cur;cur=c.slice(s).map((v,i)=>v-c[i]);lv.push({a:cur.slice(),lag:s});}
+  for(let i=0;i<d;i++){const c=cur;cur=c.slice(1).map((v,j)=>v-c[j]);lv.push({a:cur.slice(),lag:1});}return lv;}
+const lastLv=lv=>lv[lv.length-1].a;
+function invertF(lv,wf){const arr=lv.map(l=>l.a.slice());const L=arr.length;const out=[];
+  for(const w of wf){let v=w;arr[L-1].push(v);for(let j=L-1;j>=1;j--){const prev=arr[j-1];v=prev[prev.length-lv[j].lag]+v;prev.push(v);}out.push(arr[0][arr[0].length-1]);}
+  return out;}
+function buildPolys(par,o){const ar=[1,...par.phi.map(v=>-v)];const sar=new Array(o.P*o.m+1).fill(0);sar[0]=1;par.Phi.forEach((v,j)=>sar[(j+1)*o.m]=-v);
+  const ma=[1,...par.theta];const sma=new Array(o.Q*o.m+1).fill(0);sma[0]=1;par.Theta.forEach((v,j)=>sma[(j+1)*o.m]=v);
+  return{A:polyMul(ar,sar),B:polyMul(ma,sma)};}
+function armaResid(u,A,B,start){const K=A.length-1,Q=B.length-1;const e=new Array(u.length).fill(0);let sse=0,N=0;
+  for(let t=start;t<u.length;t++){let v=0;for(let k=0;k<=K;k++)v+=A[k]*u[t-k];for(let k=1;k<=Q;k++)if(t-k>=0)v-=B[k]*e[t-k];e[t]=v;sse+=v*v;N++;}
+  return{e,sse,N};}
+function arimaPenalty(par){let worst=0;
+  const chk=a=>{if(a.length>1){const m=maxMod(a);if(m>=0.995)worst=Math.max(worst,m);}};
+  chk([1,...par.phi.map(v=>-v)]);chk([1,...par.Phi.map(v=>-v)]);chk([1,...par.theta]);chk([1,...par.Theta]);return worst;}
+function fitArima(y,x,o,startOverride){
+  const lv=makeDiff(y,o.d,o.D,o.m);const w=lastLv(lv);const off=o.D*o.m+o.d;
+  let xw=null;if(o.exog){if(!x)return{error:'This data has no driver x. Paste one under “Your own numbers”, or switch off the X.'};xw=lastLv(makeDiff(x.slice(0,y.length),o.d,o.D,o.m));}
+  const K=o.p+o.P*o.m;const start=Math.max(K,startOverride||0);
+  const nPar=o.p+o.q+o.P+o.Q+(o.trend?1:0)+(o.exog?1:0);
+  if(w.length-start<nPar+8)return{error:`Not enough training data for this model: ${w.length-start} usable points after differencing and lags, for ${nPar} parameters. Lower the orders, shorten the hold-out, or use a shorter season.`};
+  let c0=0,b0=0;
+  if(o.trend||o.exog){const cols=[];if(o.trend)cols.push(t=>1);if(o.exog)cols.push(t=>xw[t]);const k=cols.length;const A=Array.from({length:k},()=>new Array(k).fill(0)),b=new Array(k).fill(0);
+    for(let t=start;t<w.length;t++){const row=cols.map(f=>f(t));for(let i=0;i<k;i++){b[i]+=row[i]*w[t];for(let j=0;j<k;j++)A[i][j]+=row[i]*row[j];}}
+    for(let i=0;i<k;i++)A[i][i]+=1e-9;const sol=solve(A,b);let i=0;if(o.trend)c0=sol[i++];if(o.exog)b0=sol[i++];}
+  const u0=w.map((v,t)=>v-c0-b0*(xw?xw[t]:0));
+  let phi0=new Array(o.p).fill(0);
+  if(o.p){const a=fitAR(u0,o.p);phi0=a.phi;let g=0;while(maxMod([1,...phi0.map(v=>-v)])>=0.95&&g++<20)phi0=phi0.map(v=>v*0.8);}
+  const decode=v=>{let i=0;const c=o.trend?v[i++]:0;const beta=o.exog?v[i++]:0;const phi=v.slice(i,i+=o.p);const theta=v.slice(i,i+=o.q);const Phi=v.slice(i,i+=o.P);const Theta=v.slice(i,i+=o.Q);return{c,beta,phi,theta,Phi,Theta};};
+  const f=v=>{const par=decode(v);const pen=arimaPenalty(par);if(pen)return 1e30*pen;const{A,B}=buildPolys(par,o);
+    const u=w.map((vv,t)=>vv-par.c-par.beta*(xw?xw[t]:0));const r=armaResid(u,A,B,start);return isFinite(r.sse)?r.sse:1e300;};
+  const sw=sd(w.slice(start))||1;
+  const x0=[...(o.trend?[c0]:[]),...(o.exog?[b0]:[]),...phi0,...new Array(o.q).fill(0.1),...new Array(o.P).fill(0.1),...new Array(o.Q).fill(0.1)];
+  const st=[...(o.trend?[0.1*sw]:[]),...(o.exog?[0.3*sw]:[]),...new Array(o.p+o.q+o.P+o.Q).fill(0.25)];
+  let best=nelderMead(f,x0,st,300+120*nPar);best=nelderMead(f,best.x,st.map(v=>v*0.3),200+80*nPar);
+  const par=decode(best.x);const{A,B}=buildPolys(par,o);const u=w.map((vv,t)=>vv-par.c-par.beta*(xw?xw[t]:0));const r=armaResid(u,A,B,start);
+  const sigma=Math.sqrt(r.sse/r.N);
+  return{par,A,B,u,e:r.e,w,xw,lv,off,start,sigma,sse:r.sse,N:r.N,aic:r.N*Math.log(Math.max(r.sse,1e-300)/r.N)+2*(nPar+1),o,nPar};}
+function arimaPath(fit,xFull,H,r){const{par,A,B,u,e,lv,o}=fit;const K=A.length-1,Q=B.length-1;let xwF=null;
+  if(o.exog){const T=lv[0].a.length;xwF=lastLv(makeDiff(xFull.slice(0,T+H),o.d,o.D,o.m));}
+  const ue=u.slice(),ee=e.slice();const wf=[];
+  for(let h=0;h<H;h++){const t=ue.length;let v=0;for(let k=1;k<=K;k++)v-=A[k]*ue[t-k];for(let k=1;k<=Q;k++)v+=B[k]*ee[t-k];
+    const eps=r?gauss(r)*fit.sigma:0;v+=eps;ue.push(v);ee.push(eps);wf.push(par.c+par.beta*(xwF?xwF[t]:0)+v);}
+  return invertF(lv,wf);}
+function arimaRun(train,H,o,nsim){const X=o.exog?getX(train.length+H):null;const fit=fitArima(train,X,o);if(fit.error)return fit;
+  const fc=arimaPath(fit,X,H,null);const fitted=new Array(train.length).fill(null);
+  for(let t=fit.start;t<fit.e.length;t++){const idx=t+fit.off;fitted[idx]=train[idx]-fit.e[t];}
+  let lo=null,hi=null;if(nsim){const r=rng(99);const paths=[];for(let s=0;s<nsim;s++)paths.push(arimaPath(fit,X,H,r));
+    lo=[];hi=[];for(let k=0;k<H;k++){const col=paths.map(p=>p[k]).sort((a,b)=>a-b);lo.push(pct(col,0.025));hi.push(pct(col,0.975));}}
+  return{fit,fc,fitted,lo,hi};}
+function fitAR(z,p){const k=p+1;const A=Array.from({length:k},()=>new Array(k).fill(0));const b=new Array(k).fill(0);
+  for(let t=p;t<z.length;t++){const row=[1];for(let i=1;i<=p;i++)row.push(z[t-i]);for(let a=0;a<k;a++){b[a]+=row[a]*z[t];for(let c=0;c<k;c++)A[a][c]+=row[a]*row[c];}}
+  for(let a=0;a<k;a++)A[a][a]+=1e-8;const beta=solve(A,b);return{c:beta[0],phi:beta.slice(1)};}
+function arimaName(o){const s=o.P||o.D||o.Q;const X=o.exog?'X':'';
+  if(!s&&!o.d){const base=o.p&&o.q?'ARMA':o.p?'AR':o.q?'MA':'';
+    if(!base)return{fam:X?'ARMAX':'',full:X?'Regression on x (no AR or MA terms)':'White noise around a constant'};
+    const ord=o.p&&o.q?`(${o.p}, ${o.q})`:`(${o.p||o.q})`;return{fam:(base==='ARMA'||!X)?base+X:'ARMAX',full:`${base}${X}${ord}`};}
+  if(!s)return{fam:'ARIMA'+X,full:`ARIMA${X}(${o.p}, ${o.d}, ${o.q})`};
+  return{fam:'SARIMA'+X,full:`SARIMA${X}(${o.p}, ${o.d}, ${o.q})(${o.P}, ${o.D}, ${o.Q})${o.m}`};}
+function arimaSpec(){return{p:S.ar.p,d:S.ar.d,q:S.ar.q,P:S.ar.P,D:S.ar.D,Q:S.ar.Q,m:DATA.period,exog:S.ar.exog&&!!DATA.x,trend:S.ar.trend};}
+
+/* ================= ETS ================= */
+const ETS_NAMES={'N,N':'Simple exponential smoothing','N,A':'SES + additive season','N,M':'SES + multiplicative season',
+  'A,N':'Holt’s linear trend','A,A':'Holt-Winters additive','A,M':'Holt-Winters multiplicative',
+  'Ad,N':'Damped Holt','Ad,A':'Damped Holt-Winters additive','Ad,M':'Damped Holt-Winters multiplicative',
+  'M,N':'Exponential trend','M,A':'Exponential trend + additive season','M,M':'Exponential trend + multiplicative season',
+  'Md,N':'Damped exponential trend','Md,A':'Damped exp. trend + additive season','Md,M':'Damped exp. trend + multiplicative season'};
+const TREND_LABEL={N:'None',A:'Additive',Ad:'Additive damped',M:'Multiplicative',Md:'Multiplicative damped'};
+function etsCfg(error,trend,season){return{error,trend,tt:trend[0],damped:trend.length>1,season,m:DATA.period};}
+function etsCheck(y,cfg){const needPos=cfg.error==='M'||cfg.tt==='M'||cfg.season==='M';
+  if(cfg.season!=='N'&&y.length<2*cfg.m)return`Seasonal models need at least two full seasons (${2*cfg.m} points) of training data. Shorten the hold-out or the season length.`;
+  if(needPos&&y.some(v=>v<=0))return'Multiplicative error, trend or season needs every value to be above 0.';return null;}
+function etsInit(y,cfg){const m=cfg.m,tt=cfg.tt;let l0,b0=tt==='M'?1:0,s0=[];
+  if(cfg.season!=='N'){const mf=mean(y.slice(0,m)),mg=mean(y.slice(m,2*m));
+    if(tt==='A')b0=(mg-mf)/m;else if(tt==='M')b0=(mf>0&&mg>0)?Math.pow(mg/mf,1/m):1;
+    const lvl=i=>tt==='A'?mf+b0*(i-(m-1)/2):tt==='M'?mf*Math.pow(b0,i-(m-1)/2):mf;
+    l0=tt==='A'?mf-b0*(m+1)/2:tt==='M'?mf/Math.pow(b0,(m+1)/2):mf;
+    s0=y.slice(0,m).map((v,i)=>cfg.season==='A'?v-lvl(i):v/lvl(i));}
+  else{const k=Math.min(4,y.length-1);if(tt==='A')b0=(y[k]-y[0])/k;else if(tt==='M')b0=(y[0]>0&&y[k]>0)?Math.pow(y[k]/y[0],1/k):1;
+    l0=tt==='A'?y[0]-b0:tt==='M'?y[0]/b0:y[0];}
+  return{l0,b0,s0};}
+function etsRun(y,cfg,p,init){const tt=cfg.tt,ss=cfg.season,phi=cfg.damped?p.phi:1;
+  let l=init.l0,b=tt==='N'?(0):init.b0;if(tt==='M'&&!(b>0))b=1;const seas=ss!=='N'?init.s0.slice():[];
+  const fit=[],L=[],B=[],Sx=[];let sse=0,rel=0,logs=0;
+  for(let t=0;t<y.length;t++){const lp=tt==='A'?l+phi*b:tt==='M'?l*Math.pow(b,phi):l;const si=ss==='N'?0:seas[t];
+    const yh=ss==='A'?lp+si:ss==='M'?lp*si:lp;fit.push(yh);const e=y[t]-yh;sse+=e*e;rel+=(e/yh)*(e/yh);logs+=Math.log(Math.abs(yh));
+    const ln=ss==='A'?p.alpha*(y[t]-si)+(1-p.alpha)*lp:ss==='M'?p.alpha*(y[t]/si)+(1-p.alpha)*lp:p.alpha*y[t]+(1-p.alpha)*lp;
+    const bn=tt==='A'?p.beta*(ln-l)+(1-p.beta)*phi*b:tt==='M'?p.beta*(ln/l)+(1-p.beta)*Math.pow(b,phi):b;
+    if(ss==='A')seas.push(p.gamma*(y[t]-lp)+(1-p.gamma)*si);else if(ss==='M')seas.push(p.gamma*(y[t]/lp)+(1-p.gamma)*si);
+    l=ln;b=bn;L.push(l);B.push(b);if(ss!=='N')Sx.push(seas[t+cfg.m]);}
+  const n=y.length;const k=1+(tt!=='N'?2:0)+(ss!=='N'?cfg.m:0)+(cfg.damped?1:0)+1+1;
+  const obj=cfg.error==='A'?sse:n*Math.log(rel/n)+2*logs;
+  const aic=(cfg.error==='A'?n*Math.log(sse/n):n*Math.log(rel/n)+2*logs)+2*k;
+  return{fit,sse,L,B,Sx,l,b,seas,phi,T:n,obj,aic,sigma:cfg.error==='A'?Math.sqrt(sse/n):Math.sqrt(rel/n)};}
+function etsPath(run,cfg,p,H,r){let l=run.l,b=run.b;const seas=run.seas.slice();const ss=cfg.season,tt=cfg.tt,phi=run.phi,T=run.T;const out=[];
+  for(let k=0;k<H;k++){const lp=tt==='A'?l+phi*b:tt==='M'?l*Math.pow(b,phi):l;const si=ss==='N'?0:seas[T+k];const yh=ss==='A'?lp+si:ss==='M'?lp*si:lp;
+    const y=r?(cfg.error==='A'?yh+gauss(r)*run.sigma:yh*(1+gauss(r)*run.sigma)):yh;out.push(y);
+    const ln=ss==='A'?p.alpha*(y-si)+(1-p.alpha)*lp:ss==='M'?p.alpha*(y/si)+(1-p.alpha)*lp:p.alpha*y+(1-p.alpha)*lp;
+    const bn=tt==='A'?p.beta*(ln-l)+(1-p.beta)*phi*b:tt==='M'?p.beta*(ln/l)+(1-p.beta)*Math.pow(b,phi):b;
+    if(ss==='A')seas.push(p.gamma*(y-lp)+(1-p.gamma)*si);else if(ss==='M')seas.push(p.gamma*(y/lp)+(1-p.gamma)*si);
+    l=ln;b=bn;}
+  return out;}
+function etsOptimise(y,cfg,quick){const tt=cfg.tt,hasT=tt!=='N',hasS=cfg.season!=='N';const base=etsInit(y,cfg);
+  const cl=v=>Math.min(0.9999,Math.max(0.0001,v));
+  const decode=x=>{let i=0;const p={alpha:cl(sig(x[i++])),beta:0,gamma:0,phi:1};if(hasT)p.beta=cl(sig(x[i++]));if(hasS)p.gamma=cl(sig(x[i++]));if(cfg.damped)p.phi=0.8+0.19*sig(x[i++]);
+    const l0=x[i++];let b0=0;if(hasT)b0=tt==='M'?Math.exp(x[i++]):x[i++];return{p,init:{l0,b0,s0:base.s0}};};
+  const f=x=>{const{p,init}=decode(x);const r=etsRun(y,cfg,p,init);return isFinite(r.obj)?r.obj:1e300;};
+  const sdy=sd(y)||1;let best=null;
+  for(const a0 of (quick?[0.3]:[0.2,0.6])){const x0=[logit(a0)],st=[1.2];if(hasT){x0.push(logit(0.1));st.push(1.2);}if(hasS){x0.push(logit(0.1));st.push(1.2);}if(cfg.damped){x0.push(1.5);st.push(1);}
+    x0.push(base.l0);st.push(0.2*sdy);if(hasT){if(tt==='M'){x0.push(Math.log(base.b0>0?base.b0:1));st.push(0.01);}else{x0.push(base.b0);st.push(0.05*sdy);}}
+    let r=nelderMead(f,x0,st,quick?450:700);if(!quick)r=nelderMead(f,r.x,st.map(v=>v*0.3),400);if(!best||r.f<best.f)best=r;}
+  return decode(best.x);}
+/* wrap for optional log transform */
+function etsFull(train,cfg,p,init,H,nsim,logT){const ty=logT?train.map(Math.log):train;const run=etsRun(ty,cfg,p,init);
+  const back=a=>logT?a.map(Math.exp):a;const fc=back(etsPath(run,cfg,p,H,null));let lo=null,hi=null;
+  if(nsim){const r=rng(42);const paths=[];for(let s=0;s<nsim;s++)paths.push(back(etsPath(run,cfg,p,H,r)));lo=[];hi=[];
+    for(let k=0;k<H;k++){const col=paths.map(q=>q[k]).filter(isFinite).sort((a,b)=>a-b);lo.push(col.length?pct(col,0.025):null);hi.push(col.length?pct(col,0.975):null);}}
+  return{run,fc,fit:back(run.fit),lo,hi};}
+
+/* ================= charts ================= */
+const charts={};
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function draw(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);}
+function kill(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function baseOpts(o={}){const tick=css('--muted'),grid=css('--line');
+  const opts={animation:false,responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:o.legend!==false,labels:{color:tick,boxWidth:14,boxHeight:3,filter:i=>!String(i.text).startsWith('_')}},
+      tooltip:{filter:i=>!String(i.dataset.label).startsWith('_'),callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.parsed[o.indexAxis==='y'?'x':'y'],o.dp??2)}`}}},
+    scales:{x:{ticks:{color:tick,maxTicksLimit:o.xt||9,autoSkip:true,maxRotation:0},grid:{display:o.indexAxis==='y',color:grid},title:o.xtitle?{display:true,text:o.xtitle,color:tick}:undefined},
+      y:{ticks:{color:tick,autoSkip:o.indexAxis!=='y'},grid:{color:grid,display:o.indexAxis!=='y'},title:o.ytitle?{display:true,text:o.ytitle,color:tick}:undefined}}};
+  if(o.ymin!=null)opts.scales.y.min=o.ymin;if(o.ymax!=null)opts.scales.y.max=o.ymax;if(o.indexAxis)opts.indexAxis=o.indexAxis;return opts;}
+function line(label,data,color,extra={}){return Object.assign({label,data,borderColor:color,backgroundColor:color,borderWidth:1.7,pointRadius:0,pointHoverRadius:3,tension:0,spanGaps:false},extra);}
+function fcChart(id,train,test,fit,fc,lo,hi){const T=train.length,H=test.length,N=T+fc.length;const labels=Array.from({length:N},(_,i)=>DATA.label(i));
+  const pr=N<=90?1.6:0;const ds=[];
+  if(lo){ds.push(line('95% band',labels.map((_,i)=>i>=T?hi[i-T]:(i===T-1?train[T-1]:null)),'transparent',{backgroundColor:css('--band'),fill:'+1',order:10,borderWidth:0}));
+    ds.push(line('_lo',labels.map((_,i)=>i>=T?lo[i-T]:(i===T-1?train[T-1]:null)),'transparent',{order:10,borderWidth:0,fill:false}));}
+  ds.push(line('Training data',labels.map((_,i)=>i<T?train[i]:null),css('--obs'),{pointRadius:pr}));
+  ds.push(line('Hold-out (test)',labels.map((_,i)=>i>=T-1&&i<T+H?(i<T?train[i]:test[i-T]):null),css('--test'),{pointRadius:pr,borderWidth:2}));
+  if(fit)ds.push(line('One-step fit',labels.map((_,i)=>i<T?fit[i]:null),css('--fit'),{borderDash:[5,3],borderWidth:1.5}));
+  ds.push(line('Forecast',labels.map((_,i)=>i>=T?fc[i-T]:(i===T-1?train[T-1]:null)),css('--fc'),{borderWidth:2.4}));
+  draw(id,{type:'line',data:{labels,datasets:ds},options:baseOpts({ytitle:DATA.unit})});}
+function barChart(id,labels,vals,colors,extraDs=[],o={}){draw(id,{type:'bar',data:{labels,datasets:[{label:o.label||'value',data:vals,backgroundColor:colors,borderWidth:0,barPercentage:0.8,categoryPercentage:0.9,order:2},...extraDs]},
+  options:baseOpts(Object.assign({legend:false},o))});}
+function corrChart(id,vals,n,theo){const K=vals.length;const labels=Array.from({length:K},(_,i)=>i+1);const b=1.96/Math.sqrt(n);
+  const ext=[line('_ub',labels.map(()=>b),css('--muted'),{type:'line',borderDash:[4,4],borderWidth:1,order:1}),line('_lb',labels.map(()=>-b),css('--muted'),{type:'line',borderDash:[4,4],borderWidth:1,order:1})];
+  if(theo)ext.push(line('Model implies',theo,css('--fc'),{type:'line',borderWidth:2,pointRadius:1.5,order:0}));
+  barChart(id,labels,vals,vals.map(v=>Math.abs(v)>b?css('--fit'):css('--dim')),ext,{label:'Sample',ymin:-1,ymax:1,xtitle:'Lag',legend:!!theo});}
+const note=(k,t,html)=>`<div class="note ${k}"><b class="t">${t}</b><p>${html}</p></div>`;
+
+/* ================= tab 1: process simulator ================= */
+function procName(P){const o={p:P.p,d:P.d,q:P.q,P:P.sar?1:0,D:0,Q:P.sma?1:0,m:P.m,exog:false};const n=arimaName(o);return n.full;}
+function renderProc(){const P=S.proc;const phi=[P.phi1,P.phi2,P.phi3].slice(0,P.p),theta=[P.th1,P.th2,P.th3].slice(0,P.q);
+  const o={p:P.p,q:P.q,P:P.sar?1:0,Q:P.sma?1:0,m:P.m};const par={phi,theta,Phi:P.sar?[P.sar]:[],Theta:P.sma?[P.sma]:[]};
+  const{A,B}=buildPolys(par,o);const K=A.length-1,Q=B.length-1;
+  const arR=polyRoots(A.slice()),maR=polyRoots(B.slice());const arMax=arR.length?Math.max(...arR.map(z=>Math.hypot(...z))):0,maMax=maR.length?Math.max(...maR.map(z=>Math.hypot(...z))):0;
+  const stat=arMax<0.9995,inv=maMax<1.0005;const A1=A.reduce((s,v)=>s+v,0);const mu=stat?P.c/A1:0;
+  const r=rng(P.seed);const burn=stat?300:0;const u=[],e=[];let blew=false;
+  for(let t=0;t<P.n+burn;t++){const eps=gauss(r)*P.sigma;let v=P.c+eps;for(let k=1;k<=K;k++)v-=A[k]*(t-k>=0?u[t-k]:mu);for(let k=1;k<=Q;k++)v+=B[k]*(t-k>=0?e[t-k]:0);
+    if(!isFinite(v)||Math.abs(v)>1e9){v=Math.sign(v||1)*1e9;blew=true;}u.push(v);e.push(eps);}
+  let xs=u.slice(burn);for(let i=0;i<P.d;i++){let s=0;xs=xs.map(v=>(s+=v));}
+  const labels=xs.map((_,i)=>i+1);const ds=[line('y',xs,css('--obs'),{borderWidth:1.3})];
+  if(stat&&!P.d)ds.push(line('Long-run mean',labels.map(()=>mu),css('--fc'),{borderDash:[6,4],borderWidth:1.6}));
+  draw('cProc',{type:'line',data:{labels,datasets:ds},options:baseOpts({legend:stat&&!P.d,xtitle:'Time step t'})});
+  const name=procName(P);document.getElementById('procName').textContent=name;
+  const terms=[...phi.map((v,i)=>`φ${'₁₂₃'[i]} = ${fmt(v)}`),...theta.map((v,i)=>`θ${'₁₂₃'[i]} = ${fmt(v)}`)];if(P.sar)terms.push(`Φ₁ = ${fmt(P.sar)}`);if(P.sma)terms.push(`Θ₁ = ${fmt(P.sma)}`);
+  document.getElementById('procCap').textContent=`${name}${terms.length?' with '+terms.join(', '):''}, c = ${fmt(P.c)}, σ = ${fmt(P.sigma)}.`;
+  drawCircle(arR,maR);
+  const v=document.getElementById('verdict');v.textContent=P.d?`Integrated (d = ${P.d}): not stationary`:stat?'Stationary':(arMax<1.0005?'Unit root: not stationary':'Explosive: not stationary');v.className='verdict '+(stat&&!P.d?'ok':'no');
+  const v2=document.getElementById('verdict2');v2.textContent=Q?(inv?'Invertible':'Not invertible'):'';v2.className='verdict '+(inv?'ok':'no');
+  const Kl=Math.max(24,Math.min(3*P.m+2,40),0);const KK=Math.min(Kl,Math.floor(xs.length/4));const a=acf(xs,KK);const th=stat&&arMax<0.995&&!P.d?theoACF(A,B,KK):null;
+  corrChart('cAcf',a,xs.length,th);corrChart('cPacf',pacf(a),xs.length,th?pacf(th):null);
+  const msg=[];
+  if(P.d)msg.push(`<p><b>Integrated of order ${P.d}.</b> The underlying ARMA part is ${stat?'stationary':'not stationary'}, but it has been added up ${P.d===1?'once':'twice'}, so the level wanders and the ACF decays very slowly. Differencing ${P.d===1?'once (d = 1)':'twice (d = 2)'} recovers the ARMA series. This is the I in ARIMA.</p>`);
+  if(K){if(stat)msg.push(`<p><b>AR part is stationary.</b> The largest AR root has size ${fmt(arMax)}; the closer to 1, the longer a shock lingers.${!P.d?` Long-run mean = c / (1 − Σφ)(1 − Φ₁) = <b>${fmt(mu)}</b>.`:''}</p>`);
+    else if(arMax<1.0005)msg.push(`<p><b>An AR root sits on the unit circle.</b> That’s a unit root, like a random walk: shocks never fade. The ADF test’s null hypothesis is exactly this case.</p>`);
+    else msg.push(`<p><b>An AR root lies outside the circle (size ${fmt(arMax)}).</b> Each shock grows instead of fading, so the series runs away${blew?' (values were capped for the chart)':''}.</p>`);}
+  else if(!P.d)msg.push(`<p><b>No AR terms, so the process is always stationary.</b> ${Q?'A pure MA process only remembers shocks from up to '+Q+' step'+(Q>1?'s':'')+' back, so its ACF is zero beyond lag '+Q+'.':'This is white noise around c.'}</p>`);
+  if(Q){if(inv)msg.push(`<p><b>MA part is invertible</b> (largest MA root ${fmt(maMax)}), so past shocks can be recovered from the data and the model is uniquely identified.</p>`);
+    else msg.push(`<p><b>MA part is not invertible</b> (MA root size ${fmt(maMax)}). Another MA model with θ replaced by 1/θ gives the same ACF, so the data can’t tell them apart. statsmodels’ enforce_invertibility=True rules this region out.</p>`);}
+  const cx=arR.filter(z=>Math.abs(z[1])>1e-6&&Math.hypot(...z)>0.3);
+  if(stat&&cx.length&&P.p>=2&&!P.sar){const th2=Math.abs(Math.atan2(cx[0][1],cx[0][0]));msg.push(`<p><b>Complex AR roots</b> give pseudo-cycles of roughly ${fmt(2*Math.PI/th2,1)} steps. Look for the wave in the ACF.</p>`);}
+  if(P.sar||P.sma)msg.push(`<p><b>Seasonal terms at lag ${P.m}:</b> look for spikes at lags ${P.m}, ${2*P.m}${P.sar?', …, decaying (seasonal AR)':' only (seasonal MA)'} in the ACF.</p>`);
+  document.getElementById('procRead').innerHTML=msg.join('');}
+function drawCircle(arR,maR){const R=1.55,W=120;const px=v=>(v/R)*W;const muted=css('--muted'),ln=css('--line'),good=css('--good'),bad=css('--bad');
+  let s=`<svg viewBox="${-W-10} ${-W-10} ${2*W+20} ${2*W+20}" role="img" aria-label="AR and MA roots plotted against the unit circle">`;
+  s+=`<circle cx="0" cy="0" r="${px(1)}" fill="${css('--teal-bg')}" stroke="${good}" stroke-width="2"/>`;
+  s+=`<line x1="${-W}" y1="0" x2="${W}" y2="0" stroke="${ln}"/><line x1="0" y1="${-W}" x2="0" y2="${W}" stroke="${ln}"/>`;
+  const tx=(x,y,t)=>`<text x="${x}" y="${y}" font-size="11" fill="${muted}" font-family="Public Sans, sans-serif">${t}</text>`;
+  s+=tx(px(1)+4,-5,'1')+tx(px(-1)-14,-5,'−1')+tx(4,-px(1)-6,'i');
+  const pos=z=>{const m=Math.hypot(z[0],z[1]);let x=z[0],y=z[1];if(m>R*0.93){x=x/m*R*0.93;y=y/m*R*0.93;}return[px(x),-px(y)];};
+  maR.forEach(z=>{const[x,y]=pos(z);const c=Math.hypot(...z)<1.0005?good:bad;s+=`<rect x="${x-6}" y="${y-6}" width="12" height="12" fill="none" stroke="${c}" stroke-width="2.5"/>`;});
+  arR.forEach(z=>{const[x,y]=pos(z);const c=Math.hypot(...z)<0.9995?good:bad;s+=`<circle cx="${x}" cy="${y}" r="7" fill="${c}" stroke="${css('--surface')}" stroke-width="2"/>`;});
+  s+=`</svg>`;
+  const f=z=>`${fmt(z[0])}${Math.abs(z[1])>1e-6?(z[1]>0?' + ':' − ')+fmt(Math.abs(z[1]))+'i':''}`;
+  const lst=(!arR.length?'':arR.length<=4?`AR roots: ${arR.map(f).join(', ')}. `:`${arR.length} AR roots. `)+(!maR.length?'':maR.length<=4?`MA roots: ${maR.map(f).join(', ')}. `:`${maR.length} MA roots. `);
+  document.getElementById('unitCircle').innerHTML=s+`<p class="cap">${lst||'No AR or MA terms. '}statsmodels reports the inverses, which must lie outside the circle.</p>`;}
+
+/* ================= tab 2: ARIMA family ================= */
+function setFamily(f){const a=S.ar;const X=f.endsWith('X');const b=X?f.slice(0,-1):f;
+  a.exog=X&&!!DATA.x;
+  if(b==='AR'){a.p=a.p||2;a.q=0;a.d=0;a.P=a.D=a.Q=0;}
+  else if(b==='MA'){a.p=0;a.q=a.q||1;a.d=0;a.P=a.D=a.Q=0;}
+  else if(b==='ARMA'||f==='ARMAX'){a.p=a.p||1;a.q=a.q||1;a.d=0;a.P=a.D=a.Q=0;}
+  else if(b==='ARIMA'){a.d=a.d||1;if(!a.p&&!a.q)a.p=1;a.P=a.D=a.Q=0;}
+  else if(b==='SARIMA'){if(!a.P&&!a.D&&!a.Q){a.D=1;a.Q=1;}}
+  S._search=null;syncControls();render();}
+function arZLabel(o){const mon=DATA.period===12&&S.data.preset==='revenue';
+  if(!o.d&&!o.D)return'Raw values';if(o.d===1&&!o.D)return mon?'Month-on-month change':'Change from the previous step';
+  if(!o.d&&o.D)return mon?'Change vs same month last year':'Change vs same point last season';if(o.d===2&&!o.D)return'Change in the change';return'Seasonal and regular differences';}
+function arimaCode(o,H){const x=o.exog;return`from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+model = SARIMAX(
+    train${x?`,
+    exog=x_train,           # the driver x`:''}
+    order=(${o.p}, ${o.d}, ${o.q}),
+    seasonal_order=(${o.P}, ${o.D}, ${o.Q}, ${o.P||o.D||o.Q?o.m:0}),
+    trend="${o.trend?(o.d||o.D?'t':'c'):'n'}",${o.trend&&(o.d||o.D)?'            # drift once differenced':''}
+)
+result = model.fit()
+forecast = result.get_forecast(steps=${H}${x?', exog=x_test':''})
+mean, band = forecast.predicted_mean, forecast.conf_int()`;}
+function renderAR(){const{train,test,H,F}=split();const o=arimaSpec();
+  document.getElementById('arMhint').textContent=`Seasonal terms act at lag m = ${DATA.period}, the season length set in the data panel.`;
+  const ex=document.getElementById('exogChk');ex.disabled=!DATA.x;
+  document.getElementById('exogHint').textContent=DATA.x?(S.data.preset==='custom'?'Using your pasted driver.':`x = ${DATA.xname}. True effect in the simulation: ${fmt(S.data.effect,1)} per unit of x. The model is told x for the forecast period too, as in get_forecast(exog=x_test).`):'This data has no driver. Paste one under “Your own numbers” to use the X.';
+  const nm=arimaName(o);document.getElementById('arName').textContent=nm.full;
+  document.querySelectorAll('#famBtns button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.f===nm.fam)));
+  let sub='';if((o.d||o.D)&&(o.p||o.q))sub=`Equivalent to ARMA(${o.p}, ${o.q}) on the ${arZLabel(o).toLowerCase()}${o.P||o.Q?`, plus seasonal terms`:''}.`;
+  if(o.exog)sub+=(sub?' ':'')+'x enters as a regression with ARMA errors, as in statsmodels’ SARIMAX.';
+  document.getElementById('arSub').textContent=sub;
+  document.getElementById('arCode').textContent=arimaCode(o,H+F);
+  const res=arimaRun(train,H+F,o,S.ar.band?300:0);const err=document.getElementById('arErr');
+  if(res.error){err.textContent=res.error;['cArFc','cArZ','cArRes','cArX'].forEach(kill);document.getElementById('arScore').innerHTML='';document.getElementById('arNotes').innerHTML='';document.getElementById('arCoef').innerHTML='';return;}
+  err.textContent='';const fit=res.fit;
+  fcChart('cArFc',train,test,res.fitted,res.fc,res.lo,res.hi);
+  const tMae=mae(test,res.fc.slice(0,H)),inMae=mae(train,res.fitted);const bs=baselines(train,test,H);
+  document.getElementById('arScore').innerHTML=
+    `<div><dt>In-sample MAE</dt><dd>${fmt(inMae)}</dd></div><div><dt>Test MAE</dt><dd class="${tMae<bs.best?'good':'bad'}">${fmt(tMae)}</dd></div>`+
+    `<div><dt>Naive (last value)</dt><dd>${fmt(bs.naive)}</dd></div><div><dt>Seasonal naive</dt><dd>${fmt(bs.sn)}</dd></div>`+
+    `<div><dt>AIC</dt><dd>${fmt(fit.aic,1)}</dd></div><div><dt>Noise σ</dt><dd>${fmt(fit.sigma)}</dd></div>`;
+  const nn=[];const gap=(bs.best-tMae)/bs.best*100;
+  nn.push(note('purple','Reading the scores',`${tMae<bs.best?`${nm.full} beats the best naive baseline by ${fmt(gap,0)}% on the hold-out.`:`${nm.full} does not beat the best naive baseline (${fmt(bs.best)}). A model that can’t beat “repeat the last value” isn’t earning its complexity.`} In-sample MAE is scored on the data the model was fitted to, so it is usually optimistic.`));
+  if(!o.d&&!o.D&&Math.abs(S.data.slope)>0.05&&S.data.preset!=='custom')nn.push(note('amber','Look closer','With d = 0 the model sees the raw trending series, which isn’t stationary, so the AR terms are pushed to their limit. The notes differenced first; that’s the same as d = 1 here.'));
+  if(S.data.amp>0&&!o.P&&!o.D&&!o.Q&&S.data.preset!=='custom')nn.push(note('teal','Lecture note',`The data has a season of length ${DATA.period}, but the model has no seasonal terms. Check the residual ACF at lag ${DATA.period}, then try SARIMA.`));
+  if(o.exog)nn.push(note('teal','Lecture note',`Estimated driver effect β = ${fmt(fit.par.beta)}${S.data.preset!=='custom'?` against a true effect of ${fmt(S.data.effect,1)}`:''}. ${S.data.preset!=='custom'&&S.data.effect===0?'The true effect is 0, so β should hover near 0.':''}`));
+  else if(DATA.x&&S.data.effect!==0&&S.data.preset!=='custom')nn.push(note('teal','Lecture note',`This series is driven by ${DATA.xname} (effect ${fmt(S.data.effect,1)}), which the model can’t see. Tick “Use the driver x” to turn it into ${arimaName(Object.assign({},o,{exog:true})).full}.`));
+  if((o.d+o.D)>=2&&o.trend)nn.push(note('amber','Look closer','A constant after differencing twice implies a quadratic trend, which rarely makes sense. Consider unticking the constant.'));
+  document.getElementById('arNotes').innerHTML=nn.join('');
+  const w=fit.w;const zl=w.map((_,i)=>DATA.label(i+fit.off));
+  document.getElementById('arZcap').textContent=`${arZLabel(o)}. The ARMA part is fitted to this series${o.exog?' (after removing the driver effect)':''}. Stationary means a steady level and spread.`;
+  draw('cArZ',{type:'line',data:{labels:zl,datasets:[line(arZLabel(o),w,css('--obs'),{borderWidth:1.3}),line('_zero',zl.map(()=>0),css('--muted'),{borderDash:[3,3],borderWidth:1})]},options:baseOpts({legend:false,xt:6})});
+  const resid=fit.e.slice(fit.start);const K=Math.min(Math.max(24,DATA.period*2+1),Math.floor(resid.length/3));corrChart('cArRes',acf(resid,K),resid.length,null);
+  const rows=[];const p=fit.par;
+  if(o.trend)rows.push(['c',p.c,o.d||o.D?'Drift: average change per step after differencing':'Constant']);
+  if(o.exog)rows.push(['β',p.beta,`Effect of one unit of x (${DATA.xname})`]);
+  p.phi.forEach((v,i)=>rows.push([`φ<sub>${i+1}</sub>`,v,`AR: weight on the value ${i+1} step${i?'s':''} back`]));
+  p.theta.forEach((v,i)=>rows.push([`θ<sub>${i+1}</sub>`,v,`MA: weight on the shock ${i+1} step${i?'s':''} back`]));
+  p.Phi.forEach((v,i)=>rows.push([`Φ<sub>${i+1}</sub>`,v,`Seasonal AR at lag ${(i+1)*o.m}`]));
+  p.Theta.forEach((v,i)=>rows.push([`Θ<sub>${i+1}</sub>`,v,`Seasonal MA at lag ${(i+1)*o.m}`]));
+  rows.push(['σ',fit.sigma,'Typical size of the one-step shock']);
+  document.getElementById('arCoef').innerHTML=`<table class="t"><thead><tr><th>Term</th><th class="num">Estimate</th><th>Meaning</th></tr></thead><tbody>`+rows.map(r=>`<tr><td>${r[0]}</td><td class="num">${fmt(r[1],3)}</td><td>${r[2]}</td></tr>`).join('')+`</tbody></table>`;
+  if(o.exog){const X=getX(train.length+H+F);const lab=X.map((_,i)=>DATA.label(i));
+    document.getElementById('arXcap').textContent=`${DATA.xname[0].toUpperCase()+DATA.xname.slice(1)}. Values after the training period are treated as known inputs.`;
+    draw('cArX',{type:'bar',data:{labels:lab,datasets:[{label:'x',data:X,backgroundColor:X.map((_,i)=>i<train.length?css('--dim'):css('--test')),borderWidth:0}]},options:baseOpts({legend:false,xt:6})});}
+  else kill('cArX');
+  renderSearch();}
+function runSearch(){const{train}=split();const base=arimaSpec();const m=base.m;const seasonalOK=train.length-base.d-base.D*m>=3*m+12;
+  const Ps=seasonalOK?[0,1]:[0];const start=2+(seasonalOK?m:0);const out=[];const X=base.exog?getX(train.length):null;
+  for(const p of[0,1,2])for(const q of[0,1,2])for(const P of Ps)for(const Q of Ps){const o=Object.assign({},base,{p,q,P,Q});const f=fitArima(train,X,o,start);if(!f.error)out.push({p,q,P,Q,aic:f.aic,name:arimaName(o).full});}
+  out.sort((a,b)=>a.aic-b.aic);S._search={key:DATA.version+'|'+S.data.H+'|'+base.d+base.D+base.exog+base.trend,rows:out,seasonalOK};
+  if(out.length){Object.assign(S.ar,{p:out[0].p,q:out[0].q,P:out[0].P,Q:out[0].Q});}syncControls();render();}
+function renderSearch(){const el=document.getElementById('arSearchOut');const s=S._search;const o=arimaSpec();
+  if(!s||s.key!==DATA.version+'|'+S.data.H+'|'+o.d+o.D+o.exog+o.trend){el.innerHTML='';return;}
+  el.innerHTML=`<figure><h3>AIC search results</h3><p class="cap">${s.rows.length} models fitted on the same sample, at d = ${o.d}, D = ${o.D}${s.seasonalOK?'':' (too little data for seasonal terms)'}. Lowest AIC first; the winner is now selected. Tap a row to try it.</p><div class="tablewrap"><table class="t"><thead><tr><th>Rank</th><th>Model</th><th class="num">AIC</th><th class="num">Δ AIC</th></tr></thead><tbody>`+
+    s.rows.slice(0,8).map((r,i)=>`<tr class="${i===0?'best':''}" data-row="${i}" style="cursor:pointer"><td>${i+1}</td><td>${r.name}</td><td class="num">${fmt(r.aic,1)}</td><td class="num">${fmt(r.aic-s.rows[0].aic,1)}</td></tr>`).join('')+`</tbody></table></div><p class="cap">AIC is only comparable between models with the same d and D, because differencing changes the data being scored.</p></figure>`;
+  el.querySelectorAll('tr[data-row]').forEach(tr=>tr.addEventListener('click',()=>{const r=s.rows[+tr.dataset.row];Object.assign(S.ar,{p:r.p,q:r.q,P:r.P,Q:r.Q});syncControls();render();}));}
+
+/* ================= tab 3: exponential smoothing ================= */
+function esKey(){return[DATA.version,S.es.error,S.es.trend,S.es.season,S.es.log,S.data.H].join('|');}
+function esCode(cfg){const tr=cfg.tt==='N'?'None':cfg.tt==='A'?'"add"':'"mul"';const se=cfg.season==='N'?'None':cfg.season==='A'?'"add"':'"mul"';
+  const lines=[];
+  if(cfg.error==='A'&&cfg.tt!=='M'){lines.push(`from statsmodels.tsa.holtwinters import ExponentialSmoothing\n\nmodel = ExponentialSmoothing(\n    train,\n    trend=${tr},${cfg.tt!=='N'?`\n    damped_trend=${cfg.damped?'True':'False'},`:''}\n    seasonal=${se},${cfg.season!=='N'?`\n    seasonal_periods=${cfg.m},`:''}${S.es.log?'\n    use_boxcox=0,           # log transform':''}\n    initialization_method="estimated",\n)\nresult = model.fit()\n\n# Or the state-space version, which also gives prediction intervals:`);}
+  lines.push(`from statsmodels.tsa.exponential_smoothing.ets import ETSModel\n\nmodel = ETSModel(\n    ${S.es.log?'np.log(train)':'train'},\n    error="${cfg.error==='A'?'add':'mul'}",\n    trend=${tr},${cfg.tt!=='N'?`\n    damped_trend=${cfg.damped?'True':'False'},`:''}\n    seasonal=${se},${cfg.season!=='N'?`\n    seasonal_periods=${cfg.m},`:''}\n)\nresult = model.fit()\nprint(result.aic)\nforecast = result.forecast(${S.data.H+S.data.F})`);
+  return lines.join('\n');}
+function renderGrid(train){const g=document.getElementById('etsGrid');const E=S.es.error;const grid=S.es.grid;
+  let best=null;if(grid){Object.entries(grid).forEach(([k,v])=>{if(isFinite(v)&&(!best||v<grid[best]))best=k;});}
+  let h=`<span></span><span class="h"><span class="long">No season</span><span class="short">Season N</span></span><span class="h"><span class="long">Additive season</span><span class="short">Season A</span></span><span class="h"><span class="long">Multiplicative season</span><span class="short">Season M</span></span>`;
+  ['N','A','Ad','M','Md'].forEach(t=>{h+=`<span class="r"><span class="long">${TREND_LABEL[t]}</span><span class="short">Trend ${t}</span></span>`;['N','A','M'].forEach(s=>{const cfg=etsCfg(E,t,s);const bad=etsCheck(S.es.log?train.map(v=>v>0?Math.log(v):-1):train,cfg)||(S.es.log&&train.some(v=>v<=0));
+      const key=`${E},${t},${s}`;const aic=grid?grid[key]:undefined;const sel=S.es.trend===t&&S.es.season===s;
+      h+=`<button data-t="${t}" data-s="${s}" aria-pressed="${sel}" class="${best===key?'best':''}" ${bad?'disabled title="Not available for this data"':''}><span class="tg">ETS(${E},<wbr>${t},<wbr>${s})</span><span class="nm">${ETS_NAMES[t+','+s]}</span>${aic!==undefined?`<span class="aic">AIC ${isFinite(aic)?fmt(aic,1):'–'}${best===key?', best':''}</span>`:''}</button>`;});});
+  g.innerHTML=h;
+  g.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{S.es.trend=b.dataset.t;S.es.season=b.dataset.s;S.es.init=null;syncControls();render();}));
+  if(grid){const all=Object.entries(grid).filter(([,v])=>isFinite(v)).sort((a,b)=>a[1]-b[1]);
+    document.getElementById('gridCap').innerHTML=all.length?`Best of all 30 by AIC: <b>ETS(${all[0][0]})</b>, ${ETS_NAMES[all[0][0].split(',').slice(1).join(',')]}. Cells show AIC for ${E==='A'?'additive':'multiplicative'} errors; switch the error type to see the other 15.`:'No model could be fitted.';}
+  else document.getElementById('gridCap').textContent='Pick a cell to switch model. The error type applies to every cell, giving 30 ETS models in total. “Find the best” fills in each AIC.';}
+function renderES(){const{train,test,H,F}=split();const cfg=etsCfg(S.es.error,S.es.trend,S.es.season);const logT=S.es.log;
+  const key=S.es.trend+','+S.es.season;document.getElementById('esName').textContent=`ETS(${S.es.error},${S.es.trend},${S.es.season}): ${ETS_NAMES[key]}`;
+  document.querySelectorAll('#esQuick button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.t===S.es.trend&&b.dataset.s===S.es.season)));
+  const subs=[];subs.push(S.es.error==='A'?'Additive errors: the noise has the same size at every level.':'Multiplicative errors: the noise scales with the level. Point forecasts match additive errors; the band and AIC differ.');
+  if(logT)subs.push('Fitted on log values and transformed back.');document.getElementById('esSub').textContent=subs.join(' ');
+  document.getElementById('esCode').textContent=esCode(cfg);
+  renderGrid(train);
+  const p={alpha:S.es.alpha,beta:S.es.beta,gamma:S.es.gamma,phi:S.es.phi};
+  const W=Array.from({length:25},(_,k)=>p.alpha*Math.pow(1-p.alpha,k));
+  barChart('cEsW',W.map((_,k)=>k),W,W.map((_,k)=>k===0?css('--fc'):css('--fit')),[],{label:'Weight',dp:3,xtitle:'Steps back (k)',ymin:0});
+  const ty=logT?train.map(v=>v>0?Math.log(v):NaN):train;let err=etsCheck(ty,cfg);if(logT&&train.some(v=>v<=0))err='The log transform needs every value to be above 0.';
+  document.getElementById('esErr').textContent=err||'';
+  if(err){['cEsFc','cEsL','cEsB','cEsS'].forEach(kill);document.getElementById('esScore').innerHTML='';document.getElementById('esNotes').innerHTML='';return;}
+  const init=S.es.init&&S.es.init.key===esKey()?S.es.init:etsInit(ty,cfg);
+  const res=etsFull(train,cfg,p,init,H+F,S.es.band?400:0,logT);const run=res.run;
+  fcChart('cEsFc',train,test,res.fit,res.fc,res.lo,res.hi);
+  const tMae=mae(test,res.fc.slice(0,H));const bs=baselines(train,test,H);
+  document.getElementById('esScore').innerHTML=
+    `<div><dt>AIC</dt><dd>${fmt(run.aic,1)}</dd></div><div><dt>Training MAE</dt><dd>${fmt(mae(train,res.fit))}</dd></div>`+
+    `<div><dt>Test MAE</dt><dd class="${tMae<bs.best?'good':'bad'}">${fmt(tMae)}</dd></div>`+
+    `<div><dt>Naive (last value)</dt><dd>${fmt(bs.naive)}</dd></div><div><dt>Seasonal naive</dt><dd>${fmt(bs.sn)}</dd></div>`;
+  const nn=[];
+  if(S.es.trend==='N'&&Math.abs(S.data.slope)>0.05&&S.data.preset!=='custom')nn.push(note('teal','Lecture note','No trend component, so the forecast is flat and will lag behind a trending series. That’s the motivation for Holt.'));
+  if(S.es.trend[0]==='M')nn.push(note('teal','Lecture note','A multiplicative trend grows by a percentage each step, so the forecast curves upward. Damping stops it compounding forever.'));
+  if(S.es.season==='M')nn.push(note('teal','Lecture note','Multiplicative seasonality: the seasonal swings grow with the level. Use it when the peaks get bigger as the series rises.'));
+  if(S.es.season!=='N'&&S.data.amp===0&&S.data.preset!=='custom')nn.push(note('amber','Look closer','This series has no seasonality, so the seasonal terms mostly fit noise. Compare the AIC with the no-season column.'));
+  if(DATA.x&&S.data.effect!==0&&S.data.preset!=='custom')nn.push(note('amber','Look closer',`This series is partly driven by ${DATA.xname}. Exponential smoothing has no way to use an external driver; only the X models in tab 2 can.`));
+  nn.push(note('amber','Look closer','Tuning the sliders until the purple and amber lines match is leakage: the test score no longer estimates real performance. Use “Fit parameters”, which only looks at the training data.'));
+  document.getElementById('esNotes').innerHTML=nn.join('');
+  const labels=train.map((_,i)=>DATA.label(i));const bk=a=>logT?a.map(Math.exp):a;
+  draw('cEsL',{type:'line',data:{labels,datasets:[line('Data',train,css('--dim'),{borderWidth:1.2}),line('Level',bk(run.L),css('--fit'),{borderWidth:2})]},options:baseOpts({xt:6})});
+  if(cfg.tt!=='N'){const ref=cfg.tt==='M'?1:0;document.getElementById('esBcap').textContent=cfg.tt==='M'?'Growth factor per step. Above 1 is rising (1.01 means +1% a step).':`Change per step${logT?' (on the log scale)':''}. Above 0 is rising.`;
+    draw('cEsB',{type:'line',data:{labels,datasets:[line('Trend',run.B,css('--fc'),{borderWidth:2}),line('_ref',labels.map(()=>ref),css('--muted'),{borderDash:[3,3],borderWidth:1})]},options:baseOpts({legend:false,xt:6})});}else kill('cEsB');
+  if(cfg.season!=='N'){document.getElementById('esScap').textContent=cfg.season==='A'?`Added to the level${logT?' (on the log scale)':''}. Around 0 means no seasonal effect.`:'Multiplies the level. Around 1 means no seasonal effect.';
+    draw('cEsS',{type:'line',data:{labels,datasets:[line('Season',run.Sx,css('--test'),{borderWidth:1.8})]},options:baseOpts({legend:false,xt:6})});}else kill('cEsS');}
+function fitES(){const{train}=split();const cfg=etsCfg(S.es.error,S.es.trend,S.es.season);const ty=S.es.log?train.map(Math.log):train;if(etsCheck(ty,cfg)||ty.some(v=>!isFinite(v)))return;
+  const{p,init}=etsOptimise(ty,cfg);S.es.alpha=Math.max(0.01,+p.alpha.toFixed(2));if(cfg.tt!=='N')S.es.beta=+p.beta.toFixed(2);if(cfg.season!=='N')S.es.gamma=+p.gamma.toFixed(2);if(cfg.damped)S.es.phi=+p.phi.toFixed(2);
+  S.es.init=Object.assign({key:esKey()},init);syncControls();render();}
+function bestES(){const busy=document.getElementById('esBusy');busy.textContent='Fitting 30 models…';
+  setTimeout(()=>{const{train}=split();const ty=S.es.log?train.map(Math.log):train;const grid={};let best=null;
+    for(const E of['A','M'])for(const t of['N','A','Ad','M','Md'])for(const s of['N','A','M']){const cfg=etsCfg(E,t,s);const k=`${E},${t},${s}`;
+      if(etsCheck(ty,cfg)||ty.some(v=>!isFinite(v))){grid[k]=NaN;continue;}
+      const{p,init}=etsOptimise(ty,cfg,true);const r=etsRun(ty,cfg,p,init);grid[k]=r.aic;if(isFinite(r.aic)&&(!best||r.aic<best.aic))best={E,t,s,p,init,aic:r.aic};}
+    busy.textContent='';if(best){Object.assign(S.es,{error:best.E,trend:best.t,season:best.s});S.es.grid=null;fitES();S.es.grid=grid;S.es.gridKey=DATA.version+'|'+S.data.H+'|'+S.es.log;}
+    render();},30);}
+
+/* ================= tab 4: compare ================= */
+let CMP_CACHE={};
+function esAuto(E,t,s){return tr=>{const cfg=etsCfg(E,t,s);if(etsCheck(tr,cfg))return null;const{p,init}=etsOptimise(tr,cfg,true);const run=etsRun(tr,cfg,p,init);return h=>etsPath(run,cfg,p,h,null);};}
+function cmpModels(){const m=DATA.period;const a=S.ar;const p=a.p||1,q=a.q||1,d=a.d;const sP=a.P||a.D||a.Q?{P:a.P,D:a.D,Q:a.Q}:{P:0,D:1,Q:1};
+  const arim=(o,fam)=>({fam,name:arimaName(Object.assign({m},o)).full,f:tr=>{const X=o.exog?getX(tr.length+60):null;const full=Object.assign({m,trend:a.trend},o);const ft=fitArima(tr,X,full);if(ft.error)return null;return h=>arimaPath(ft,X?getX(tr.length+h):null,h,null);}});
+  const L=[
+    {fam:'base',name:'Naive (last value)',f:tr=>h=>Array(h).fill(tr[tr.length-1])},
+    {fam:'base',name:'Seasonal naive',f:tr=>tr.length>=m?h=>Array.from({length:h},(_,k)=>tr[tr.length-m+(k%m)]):null},
+    {fam:'base',name:'Mean of history',f:tr=>h=>Array(h).fill(mean(tr))},
+    arim({p,d,q:0,P:0,D:0,Q:0},'arima'),
+    arim({p:0,d,q,P:0,D:0,Q:0},'arima'),
+    arim({p,d,q,P:0,D:0,Q:0},'arima'),
+    arim({p,d,q,...sP},'arima')];
+  if(DATA.x){L.push(arim({p,d,q,P:0,D:0,Q:0,exog:true},'arima'));L.push(arim({p,d,q,...sP,exog:true},'arima'));}
+  L.push({fam:'ets',name:'SES',f:esAuto('A','N','N')},{fam:'ets',name:'Holt',f:esAuto('A','A','N')},{fam:'ets',name:'Damped Holt',f:esAuto('A','Ad','N')},
+    {fam:'ets',name:'Holt-Winters additive',f:esAuto('A','A','A')},{fam:'ets',name:'Holt-Winters multiplicative',f:esAuto('A','A','M')},{fam:'ets',name:'Damped Holt-Winters',f:esAuto('A','Ad','A')},
+    {fam:'ets',name:'Best ETS by AIC',f:tr=>{let best=null;for(const E of['A','M'])for(const t of['N','A','Ad','M','Md'])for(const s of['N','A','M']){const cfg=etsCfg(E,t,s);if(etsCheck(tr,cfg))continue;
+      const{p:pp,init}=etsOptimise(tr,cfg,true);const r=etsRun(tr,cfg,pp,init);if(isFinite(r.aic)&&(!best||r.aic<best.aic))best={cfg,pp,r,aic:r.aic};}
+      if(!best)return null;return Object.assign(h=>etsPath(best.r,best.cfg,best.pp,h,null),{label:`ETS(${best.cfg.error},${best.cfg.trend},${best.cfg.season})`});}});
+  return L;}
+function renderCmp(){const busy=document.getElementById('cmpBusy');const a=S.ar;
+  const key=[DATA.version,S.data.H,S.cmp.mode,S.cmp.folds,S.cmp.fsize,a.p,a.d,a.q,a.P,a.D,a.Q,a.trend].join('|');
+  document.getElementById('cmpHint').textContent=`The ARIMA rungs use your orders from tab 2 (p = ${a.p||1}, d = ${a.d}, q = ${a.q||1}${a.P||a.D||a.Q?`, seasonal (${a.P}, ${a.D}, ${a.Q})`:'; seasonal rungs use (0, 1, 1), the classic choice'}). Every model is refitted on each training window, and smoothing parameters are estimated automatically, so nothing is tuned on the test data.`;
+  const y=DATA.y;const hint=document.getElementById('cmpModeHint');
+  if(S.cmp.mode==='holdout')hint.textContent=`Fit on the first ${y.length-S.data.H} points, score the last ${S.data.H}.`;
+  else hint.textContent=`Refit on a growing window ${S.cmp.folds} times and score the next ${S.cmp.fsize} point${S.cmp.fsize>1?'s':''} each time, like TimeSeriesSplit(n_splits=${S.cmp.folds}, test_size=${S.cmp.fsize}). First training window: ${y.length-S.cmp.folds*S.cmp.fsize} points.`;
+  if(CMP_CACHE.key===key){showCmp(CMP_CACHE.rows);return;}
+  busy.textContent='Fitting every model…';
+  setTimeout(()=>{const models=cmpModels();let rows;
+    if(S.cmp.mode==='holdout'){const{train,test,H}=split();
+      rows=models.map(md=>{const g=md.f(train);const fc=g?g(H):null;return{fam:md.fam,name:g&&g.label?`${md.name}: ${g.label}`:md.name,fc,score:fc?mae(test,fc):NaN};});}
+    else{const K=S.cmp.folds,fs=S.cmp.fsize,firstEnd=y.length-K*fs;
+      rows=models.map(md=>{if(firstEnd<12)return{fam:md.fam,name:md.name,score:NaN};const sc=[];for(let k=0;k<K;k++){const end=firstEnd+k*fs;const tr=y.slice(0,end),te=y.slice(end,end+fs);const g=md.f(tr);if(g)sc.push(mae(te,g(fs)));}
+        return{fam:md.fam,name:md.name,score:sc.length===K?mean(sc):NaN};});}
+    CMP_CACHE={key,rows};busy.textContent='';if(S.tab==='cmp')showCmp(rows);},30);}
+function showCmp(rows){const y=DATA.y;
+  const famCol={base:css('--muted'),arima:css('--fit'),ets:css('--fc')};
+  const ok=rows.filter(r=>isFinite(r.score)).sort((a,b)=>a.score-b.score),bad=rows.filter(r=>!isFinite(r.score));
+  document.getElementById('cmpTitle').textContent=S.cmp.mode==='holdout'?`Test MAE on the last ${S.data.H} points`:`Average MAE over ${S.cmp.folds} rolling folds`;
+  barChart('cCmp',ok.map(r=>r.name),ok.map(r=>r.score),ok.map(r=>famCol[r.fam]),[],{indexAxis:'y',label:'MAE'});
+  const base=Math.min(...rows.filter(r=>/^(Naive|Seasonal naive)/.test(r.name)&&isFinite(r.score)).map(r=>r.score));
+  const pctTxt=r=>{if(!isFinite(base))return'–';const v=Math.abs(r.score-base)/base*100;return(Math.round(v)===0?'':(r.score<base?'−':'+'))+fmt(v,0)+'%';};
+  document.getElementById('cmpTable').innerHTML=`<table class="t"><thead><tr><th>Rank</th><th>Model</th><th>Family</th><th class="num">MAE</th><th class="num">vs best naive</th></tr></thead><tbody>`+
+    ok.map((r,i)=>`<tr class="${i===0?'best':''}"><td>${i+1}</td><td>${r.name}</td><td>${{base:'Baseline',arima:'ARIMA family',ets:'Exponential smoothing'}[r.fam]}</td><td class="num">${fmt(r.score)}</td><td class="num">${pctTxt(r)}</td></tr>`).join('')+
+    bad.map(r=>`<tr><td>–</td><td>${r.name}</td><td colspan="3">Not enough training data for this model</td></tr>`).join('')+`</tbody></table>`;
+  if(S.cmp.mode==='holdout'){const{train,H}=split();const T=train.length;const start=Math.max(0,T-Math.max(3*H,2*DATA.period));const labels=[];for(let i=start;i<y.length;i++)labels.push(DATA.label(i));
+    const pal=[css('--muted'),'#8C95A6',css('--dim'),'#0E8A8C','#2E9E6E','#3B82C4','#1F5FA8','#7C5CD6','#6E45C2','#C77F00','#D9A021','#B8860B','#E0663A','#C23B63','#A8325A','#8E6C00'];
+    const top=new Set(ok.slice(0,4).map(r=>r.name));
+    const ds=[line('Actual',y.slice(start),css('--obs'),{borderWidth:2.4,pointRadius:1.5})];
+    rows.forEach((r,i)=>{if(r.fc)ds.push(line(r.name,labels.map((_,j)=>{const t=j+start;return t>=T?r.fc[t-T]:(t===T-1?y[T-1]:null);}),pal[i%pal.length],{borderWidth:1.7,hidden:!top.has(r.name)&&r.name!=='Naive (last value)'}));});
+    draw('cCmpFc',{type:'line',data:{labels,datasets:ds},options:baseOpts({ytitle:DATA.unit})});}}
+
+/* ================= UI plumbing ================= */
+function getPath(p){const[a,b]=p.split('.');return S[a][b];}
+function setPath(p,v){const[a,b]=p.split('.');S[a][b]=v;}
+function syncControls(){
+  document.querySelectorAll('[data-bind]').forEach(el=>{const v=getPath(el.dataset.bind);
+    if(el.classList.contains('seg'))el.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v)===String(v)));
+    else if(el.type==='checkbox')el.checked=!!v;else el.value=v;});
+  document.querySelectorAll('output[data-for]').forEach(o=>{const v=getPath(o.dataset.for);const dp=o.dataset.dp;o.textContent=dp!=null?fmt(v,+dp):v;});
+  document.querySelectorAll('[data-when]').forEach(el=>{let show=true;try{show=new Function('S','return '+el.dataset.when)(S);}catch(e){}el.hidden=!show;});
+  const custom=S.data.preset==='custom';document.getElementById('customBox').hidden=!custom;document.querySelectorAll('.datastrip .gen').forEach(e=>e.hidden=custom);}
+function onChange(path){
+  if(path==='data.preset'){const pr=PRESETS[S.data.preset];if(pr)Object.assign(S.data,pr);
+    if(S.data.preset==='custom'&&!CUSTOM){CUSTOM=DATA.y.map(v=>+v.toFixed(3));CUSTOMX=DATA.x?DATA.x.slice(0,DATA.y.length+12):null;document.getElementById('customText').value=CUSTOM.join(', ');document.getElementById('customX').value=CUSTOMX?CUSTOMX.join(', '):'';}}
+  if(path.startsWith('data.'))genData();
+  if(['es.error','es.trend','es.season','es.log'].includes(path))S.es.init=null;
+  if(path==='es.log')S.es.grid=null;
+  syncControls();schedule();}
+let pending=false;function schedule(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;render();});}
+function render(){if(typeof Chart==='undefined'){if(!document.getElementById('libErr'))document.querySelector('.lede').insertAdjacentHTML('afterend','<p class="err" id="libErr">The chart library could not load. Check your connection and reload.</p>');return;}
+  document.getElementById('datastrip').hidden=S.tab==='proc';
+  document.getElementById('dataSummary').textContent=`${DATA.y.length} points, season length ${DATA.period}${DATA.x?`, driver x = ${DATA.xname}`:''}. The last ${S.data.H} are held out for testing.`;
+  if(S.tab==='proc')renderProc();else if(S.tab==='ar')renderAR();else if(S.tab==='es')renderES();else renderCmp();}
+function wire(){
+  document.querySelectorAll('[data-bind]').forEach(el=>{const path=el.dataset.bind;
+    if(el.classList.contains('seg')){el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const cur=getPath(path);setPath(path,typeof cur==='number'?+b.dataset.v:b.dataset.v);onChange(path);}));}
+    else if(el.type==='checkbox')el.addEventListener('change',()=>{setPath(path,el.checked);onChange(path);});
+    else if(el.tagName==='SELECT')el.addEventListener('change',()=>{setPath(path,el.value);onChange(path);});
+    else el.addEventListener('input',()=>{const v=parseFloat(el.value);if(!isFinite(v))return;setPath(path,v);onChange(path);});});
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{S.tab=b.dataset.tab;
+    document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='tab-'+S.tab));syncControls();render();}));
+  document.getElementById('procReseed').addEventListener('click',()=>{S.proc.seed=Math.floor(Math.random()*99999)+1;render();});
+  document.getElementById('procPreset').addEventListener('change',e=>{const pr=PROC_PRESETS[e.target.value];if(pr){Object.assign(S.proc,P0,pr);syncControls();render();}e.target.value='';});
+  document.querySelectorAll('#famBtns button').forEach(b=>b.addEventListener('click',()=>setFamily(b.dataset.f)));
+  document.getElementById('arSearch').addEventListener('click',()=>{const bt=document.getElementById('arSearch');bt.textContent='Searching…';setTimeout(()=>{runSearch();bt.textContent='Search orders by AIC';},30);});
+  document.querySelectorAll('#esQuick button').forEach(b=>b.addEventListener('click',()=>{S.es.trend=b.dataset.t;S.es.season=b.dataset.s;S.es.init=null;syncControls();fitES();}));
+  document.getElementById('esFit').addEventListener('click',fitES);
+  document.getElementById('esBest').addEventListener('click',bestES);
+  document.getElementById('customApply').addEventListener('click',()=>{const parse=s=>s.split(/[\s,;]+/).filter(v=>v!=='').map(Number).filter(isFinite);
+    const nums=parse(document.getElementById('customText').value),xs=parse(document.getElementById('customX').value);const e=document.getElementById('customErr');
+    if(nums.length<24){e.textContent=`Found ${nums.length} numbers for y. Paste at least 24.`;return;}
+    if(xs.length&&xs.length<nums.length){e.textContent=`The driver has ${xs.length} values but y has ${nums.length}. Give x at least as many values as y, or leave it empty.`;return;}
+    e.textContent='';CUSTOM=nums;CUSTOMX=xs.length?xs:null;genData();syncControls();render();});
+  const mq=window.matchMedia('(prefers-color-scheme: dark)');mq.addEventListener&&mq.addEventListener('change',()=>render());}
+if(typeof Chart!=='undefined'){Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;Chart.defaults.font.size=12;}
+genData();wire();syncControls();render();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(typeof Chart!=='undefined'){Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;render();}});
+</script>
+</body>
+</html>
